@@ -25,49 +25,52 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center_vertical">
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                android:background="@drawable/bg_search_pill"
+                android:gravity="center_vertical"
+                android:minHeight="48dp"
+                android:orientation="horizontal">
+
+                <androidx.appcompat.widget.AppCompatImageView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:src="@drawable/ic_search"
+                    app:tint="?attr/colorControlNormal" />
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/searchView"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
                     android:layout_weight="1"
+                    android:layout_marginStart="10dp"
                     android:background="@null"
+                    android:gravity="center_vertical"
                     android:hint="@string/action_search"
+                    android:imeOptions="actionSearch"
                     android:inputType="text|textAutoComplete"
-                    android:paddingStart="16dp"
-                    android:paddingEnd="16dp"
+                    android:maxLines="1"
+                    android:paddingTop="11dp"
+                    android:paddingBottom="11dp"
                     android:textAppearance="@style/TextViewSubtitle1">
 
                     <requestFocus />
                 </com.google.android.material.textfield.TextInputEditText>
 
-                <FrameLayout
+                <androidx.appcompat.widget.AppCompatImageView
+                    android:id="@+id/clearText"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="0">
-
-                    <androidx.appcompat.widget.AppCompatImageView
-                        android:id="@+id/voiceSearch"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="?roundSelector"
-                        android:padding="12dp"
-                        app:srcCompat="@drawable/ic_mic"
-                        app:tint="?attr/colorControlNormal"
-                        tools:visibility="visible" />
-
-                    <androidx.appcompat.widget.AppCompatImageView
-                        android:id="@+id/clearText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="?roundSelector"
-                        android:padding="12dp"
-                        android:visibility="gone"
-                        app:srcCompat="@drawable/ic_close"
-                        app:tint="?attr/colorControlNormal"
-                        tools:visibility="visible" />
-                </FrameLayout>
+                    android:layout_marginEnd="6dp"
+                    android:background="?roundSelector"
+                    android:padding="10dp"
+                    android:visibility="gone"
+                    app:srcCompat="@drawable/ic_close"
+                    app:tint="?attr/colorControlNormal"
+                    tools:visibility="visible" />
             </LinearLayout>
         </com.google.android.material.appbar.MaterialToolbar>
         <HorizontalScrollView
@@ -128,6 +131,38 @@
             </com.google.android.material.chip.ChipGroup>
 
         </HorizontalScrollView>
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/searchHistoryLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:text="@string/search_history"
+            android:textAppearance="@style/TextViewOverline"
+            android:textColor="?attr/colorControlNormal"
+            android:visibility="gone"
+            tools:visibility="visible" />
+
+        <HorizontalScrollView
+            android:id="@+id/searchHistoryScroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="8dp"
+            android:paddingBottom="8dp"
+            android:scrollbars="none"
+            android:overScrollMode="@integer/overScrollMode"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/searchHistoryGroup"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:singleLine="true" />
+        </HorizontalScrollView>
     </com.google.android.material.appbar.AppBarLayout>
 
     <code.name.monkey.retromusic.views.insets.InsetsRecyclerView
@@ -151,16 +186,5 @@
         android:textAppearance="@style/TextViewHeadline6"
         android:visibility="gone"
         tools:visibility="visible" />
-
-    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
-        android:id="@+id/keyboardPopup"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="end|bottom"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="62dp"
-        android:text="@string/keyboard"
-        android:textAppearance="@style/TextViewHeadline6"
-        app:icon="@drawable/ic_keyboard" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

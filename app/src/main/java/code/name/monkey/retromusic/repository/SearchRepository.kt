@@ -22,6 +22,7 @@ import code.name.monkey.retromusic.model.Album
 import code.name.monkey.retromusic.model.Artist
 import code.name.monkey.retromusic.model.Genre
 import code.name.monkey.retromusic.model.Song
+import code.name.monkey.retromusic.util.SearchIndex
 
 class RealSearchRepository(
     private val songRepository: SongRepository,
@@ -37,12 +38,14 @@ class RealSearchRepository(
 
             /** Songs **/
             val songs: List<Song> = if (filter == Filter.SONGS || filter == Filter.NO_FILTER) {
-                songRepository.songs(searchString)
+                // 多字段(标题/歌手/专辑)+拼音首字母+相关度排序；索引未就绪时退回 SQL 单字段
+                if (SearchIndex.isEmpty()) songRepository.songs(searchString)
+                else SearchIndex.search(searchString)
             } else {
                 emptyList()
             }
             if (songs.isNotEmpty()) {
-                results.add(context.resources.getString(R.string.songs))
+                results.add(sectionHeader(context, R.string.songs, songs.size))
                 results.addAll(songs)
             }
 
@@ -54,7 +57,7 @@ class RealSearchRepository(
                     emptyList()
                 }
             if (artists.isNotEmpty()) {
-                results.add(context.resources.getString(R.string.artists))
+                results.add(sectionHeader(context, R.string.artists, artists.size))
                 results.addAll(artists)
             }
 
@@ -65,7 +68,7 @@ class RealSearchRepository(
                 emptyList()
             }
             if (albums.isNotEmpty()) {
-                results.add(context.resources.getString(R.string.albums))
+                results.add(sectionHeader(context, R.string.albums, albums.size))
                 results.addAll(albums)
             }
 
@@ -77,7 +80,7 @@ class RealSearchRepository(
                     emptyList()
                 }
             if (albumArtists.isNotEmpty()) {
-                results.add(context.resources.getString(R.string.album_artist))
+                results.add(sectionHeader(context, R.string.album_artist, albumArtists.size))
                 results.addAll(albumArtists)
             }
 
@@ -88,7 +91,7 @@ class RealSearchRepository(
                 emptyList()
             }
             if (genres.isNotEmpty()) {
-                results.add(context.resources.getString(R.string.genres))
+                results.add(sectionHeader(context, R.string.genres, genres.size))
                 results.addAll(genres)
             }
 
@@ -103,10 +106,15 @@ class RealSearchRepository(
                 }
 
             if (playlist.isNotEmpty()) {
-                results.add(context.getString(R.string.playlists))
+                results.add(sectionHeader(context, R.string.playlists, playlist.size))
                 results.addAll(playlist)
             }
         }
         return results
+    }
+
+    /** 分组标题 + 命中数量徽标，如 "歌曲 (12)" */
+    private fun sectionHeader(context: Context, titleRes: Int, count: Int): String {
+        return context.getString(titleRes) + " (${count})"
     }
 }

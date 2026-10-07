@@ -56,6 +56,8 @@ class PlayingQueueRVFragment : AbsRecyclerViewFragment<PlayingQueueAdapter, Line
                 findNavController().navigateUp()
             }
             setNavigationIcon(R.drawable.ic_arrow_back)
+            // Hide profile chip on this sub-page to avoid overlap with the title
+            findViewById<View?>(R.id.profileButton)?.visibility = View.GONE
         }
     }
 

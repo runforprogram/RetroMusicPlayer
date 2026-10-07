@@ -41,6 +41,9 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
+import code.name.monkey.retromusic.util.ProfileSongStore
+import code.name.monkey.retromusic.util.SearchIndex
+
 class LibraryViewModel(
     private val repository: RealRepository,
 ) : ViewModel(), IMusicServiceEventListener {
@@ -69,6 +72,7 @@ class LibraryViewModel(
     private fun loadLibraryContent() {
         libraryContentJob?.cancel()
         libraryContentJob = viewModelScope.launch(IO) {
+            ProfileSongStore.classifyNewSongs { repository.allSongsUnfiltered() }
             val homeDeferred = async { repository.homeSections() }
             val suggestionsDeferred = async { repository.suggestions() }
             val genresDeferred = async { repository.fetchGenres() }
@@ -77,6 +81,7 @@ class LibraryViewModel(
             val songSnapshot = repository.allSongs()
             if (!isActive) return@launch
             songs.postValue(songSnapshot)
+            SearchIndex.rebuild(songSnapshot)
 
             val albumSnapshot = repository.albumsForSongs(songSnapshot)
             if (!isActive) return@launch
@@ -109,7 +114,10 @@ class LibraryViewModel(
     fun getFabMargin(): LiveData<Int> = fabMargin
 
     private suspend fun fetchSongs() {
-        songs.postValue(repository.allSongs())
+        ProfileSongStore.classifyNewSongs { repository.allSongsUnfiltered() }
+        val snapshot = repository.allSongs()
+        songs.postValue(snapshot)
+        SearchIndex.rebuild(snapshot)
     }
 
     private suspend fun fetchAlbums() {
@@ -228,6 +236,10 @@ class LibraryViewModel(
 
     fun deleteRoomPlaylist(playlists: List<PlaylistEntity>) = viewModelScope.launch(IO) {
         repository.deleteRoomPlaylist(playlists)
+    }
+
+    fun deleteProfilePlaylists(profileId: Long) = viewModelScope.launch(IO) {
+        repository.deletePlaylistsForProfile(profileId)
     }
 
     fun albumById(id: Long) = repository.albumById(id)

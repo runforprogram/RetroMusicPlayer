@@ -50,6 +50,9 @@ class PlaylistsFragment :
     override val titleRes: Int
         get() = R.string.playlists
 
+    override val showAppBarTitle: Boolean
+        get() = false
+
     override val emptyMessage: Int
         get() = R.string.no_playlists
 

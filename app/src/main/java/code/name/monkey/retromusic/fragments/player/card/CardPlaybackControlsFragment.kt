@@ -30,6 +30,7 @@ import code.name.monkey.retromusic.databinding.FragmentCardPlayerPlaybackControl
 import code.name.monkey.retromusic.extensions.*
 import code.name.monkey.retromusic.fragments.base.AbsPlayerControlsFragment
 import code.name.monkey.retromusic.fragments.base.goToAlbum
+import code.name.monkey.retromusic.fragments.base.goToArtistByName
 import code.name.monkey.retromusic.helper.MusicPlayerRemote
 import code.name.monkey.retromusic.util.PreferenceUtil
 import code.name.monkey.retromusic.util.color.MediaNotificationProcessor
@@ -78,12 +79,7 @@ class CardPlaybackControlsFragment :
         binding.title.text = song.title
         
         binding.text.setArtistLinks(song.artistName) { artistName ->
-            // TODO: Navigate to artist details when artistByName() is implemented
-            Toast.makeText(
-                requireContext(),
-                getString(R.string.go_to_artist) + ": $artistName",
-                Toast.LENGTH_SHORT
-            ).show()
+            goToArtistByName(requireActivity(), artistName)
         }
 
         if (PreferenceUtil.isSongInfo) {

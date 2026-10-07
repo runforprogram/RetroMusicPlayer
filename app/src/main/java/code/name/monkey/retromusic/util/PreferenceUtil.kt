@@ -77,11 +77,15 @@ import code.name.monkey.retromusic.PLAYLIST_GRID_SIZE
 import code.name.monkey.retromusic.PLAYLIST_GRID_SIZE_LAND
 import code.name.monkey.retromusic.PLAYLIST_SORT_ORDER
 import code.name.monkey.retromusic.R
+import code.name.monkey.retromusic.CURRENT_PROFILE_ID
+import code.name.monkey.retromusic.PROFILES
 import code.name.monkey.retromusic.RECENTLY_PLAYED_CUTOFF
 import code.name.monkey.retromusic.REMEMBER_LAST_TAB
 import code.name.monkey.retromusic.SAF_SDCARD_URI
 import code.name.monkey.retromusic.SAVE_LAST_DIRECTORY
 import code.name.monkey.retromusic.SCREEN_ON_LYRICS
+import code.name.monkey.retromusic.SEARCH_HISTORY
+import code.name.monkey.retromusic.SEARCH_LAST_FILTER
 import code.name.monkey.retromusic.SHOW_LYRICS
 import code.name.monkey.retromusic.SHOW_WHEN_LOCKED
 import code.name.monkey.retromusic.SLEEP_TIMER_FINISH_SONG
@@ -131,6 +135,7 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import com.google.gson.reflect.TypeToken
+import code.name.monkey.retromusic.model.UserProfile
 import java.io.File
 
 
@@ -138,11 +143,11 @@ object PreferenceUtil {
     private val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(App.getContext())
 
     val defaultCategories = listOf(
-        CategoryInfo(CategoryInfo.Category.Home, true),
+        CategoryInfo(CategoryInfo.Category.Playlists, true),
         CategoryInfo(CategoryInfo.Category.Songs, true),
         CategoryInfo(CategoryInfo.Category.Albums, true),
         CategoryInfo(CategoryInfo.Category.Artists, true),
-        CategoryInfo(CategoryInfo.Category.Playlists, true),
+        CategoryInfo(CategoryInfo.Category.Home, false),
         CategoryInfo(CategoryInfo.Category.Genres, false),
         CategoryInfo(CategoryInfo.Category.Folder, false),
         CategoryInfo(CategoryInfo.Category.Search, false)
@@ -231,6 +236,53 @@ object PreferenceUtil {
         set(value) = sharedPreferences.edit {
             putString(SAF_SDCARD_URI, value)
         }
+
+    // ---- Multi-user (profile) support ----
+    // Each profile owns its own playlists & favorites. The default profile (id 0,
+    // named by R.string.profile_default_name) keeps the user's pre-existing data.
+    var profiles: List<UserProfile>
+        get() {
+            val json = sharedPreferences.getString(PROFILES, null)
+            if (json.isNullOrEmpty()) {
+                val default = listOf(
+                    UserProfile(
+                        0L,
+                        App.getContext().getString(R.string.profile_default_name)
+                    )
+                )
+                profiles = default
+                return default
+            }
+            return try {
+                Gson().fromJson(
+                    json,
+                    object : TypeToken<List<UserProfile>>() {}.type
+                ) ?: emptyList()
+            } catch (e: JsonSyntaxException) {
+                e.printStackTrace()
+                emptyList()
+            }
+        }
+        set(value) = sharedPreferences.edit {
+            putString(PROFILES, Gson().toJson(value))
+        }
+
+    var currentProfileId: Long
+        get() = sharedPreferences.getLong(CURRENT_PROFILE_ID, 0L)
+        set(value) = sharedPreferences.edit {
+            putLong(CURRENT_PROFILE_ID, value)
+        }
+
+    fun currentProfile(): UserProfile {
+        val list = profiles
+        return list.firstOrNull { it.id == currentProfileId }
+            ?: list.firstOrNull()
+            ?: UserProfile(0L, App.getContext().getString(R.string.profile_default_name))
+    }
+
+    fun nextProfileId(): Long {
+        return (profiles.maxOfOrNull { it.id } ?: -1L) + 1L
+    }
 
     private val autoDownloadImagesPolicy
         get() = sharedPreferences.getStringOrDefault(
@@ -569,7 +621,7 @@ object PreferenceUtil {
     val tabTitleMode: Int
         get() {
             return when (sharedPreferences.getStringOrDefault(
-                TAB_TEXT_MODE, "0"
+                TAB_TEXT_MODE, "1"
             ).toInt()) {
                 0 -> BottomNavigationView.LABEL_VISIBILITY_AUTO
                 1 -> BottomNavigationView.LABEL_VISIBILITY_LABELED
@@ -782,8 +834,36 @@ object PreferenceUtil {
         set(value) = sharedPreferences.edit { putInt(AUDIO_FADE_DURATION, value) }
 
     var showLyrics: Boolean
-        get() = sharedPreferences.getBoolean(SHOW_LYRICS, false)
+        get() = sharedPreferences.getBoolean(SHOW_LYRICS, true)
         set(value) = sharedPreferences.edit { putBoolean(SHOW_LYRICS, value) }
+
+    // ------- 搜索历史（最多 10 条，用 SOH 分隔以支持含空格/中文的查询）-------
+    var searchHistory: List<String>
+        get() {
+            val raw = sharedPreferences.getString(SEARCH_HISTORY, "") ?: ""
+            if (raw.isEmpty()) return emptyList()
+            return raw.split('\u0001').filter { it.isNotBlank() }
+        }
+        set(value) = sharedPreferences.edit {
+            putString(SEARCH_HISTORY, value.joinToString("\u0001"))
+        }
+
+    fun pushSearchHistory(query: String) {
+        val q = query.trim()
+        if (q.isEmpty()) return
+        val cur = searchHistory.toMutableList()
+        cur.removeAll { it.equals(q, ignoreCase = true) }
+        cur.add(0, q)
+        while (cur.size > 10) cur.removeAt(cur.size - 1)
+        searchHistory = cur
+    }
+
+    fun clearSearchHistory() = sharedPreferences.edit { remove(SEARCH_HISTORY) }
+
+    // ------- 记住上次搜索筛选类型（Filter 枚举名，默认 NO_FILTER=全部）-------
+    var searchLastFilter: String
+        get() = sharedPreferences.getString(SEARCH_LAST_FILTER, "NO_FILTER") ?: "NO_FILTER"
+        set(value) = sharedPreferences.edit { putString(SEARCH_LAST_FILTER, value) }
 
     val rememberLastTab: Boolean
         get() = sharedPreferences.getBoolean(REMEMBER_LAST_TAB, true)

@@ -41,6 +41,8 @@ interface Repository {
     suspend fun fetchAlbums(): List<Album>
     suspend fun albumByIdAsync(albumId: Long): Album
     suspend fun allSongs(): List<Song>
+
+    suspend fun allSongsUnfiltered(): List<Song>
     suspend fun fetchArtists(): List<Artist>
     suspend fun albumArtists(): List<Artist>
     suspend fun fetchLegacyPlaylist(): List<Playlist>
@@ -77,6 +79,7 @@ interface Repository {
     suspend fun deleteSongsInPlaylist(songs: List<SongEntity>)
     suspend fun removeSongFromPlaylist(songEntity: SongEntity)
     suspend fun deletePlaylistSongs(playlists: List<PlaylistEntity>)
+    suspend fun deletePlaylistsForProfile(profileId: Long)
     suspend fun favoritePlaylist(): PlaylistEntity
     suspend fun isFavoriteSong(songEntity: SongEntity): List<SongEntity>
     suspend fun upsertSongInHistory(currentSong: Song)
@@ -164,6 +167,8 @@ class RealRepository(
     override suspend fun fetchGenres(): List<Genre> = genreRepository.genres()
 
     override suspend fun allSongs(): List<Song> = songRepository.songs()
+
+    override suspend fun allSongsUnfiltered(): List<Song> = songRepository.songsUnfiltered()
 
     override suspend fun search(query: String?, filter: Filter): MutableList<Any> =
         searchRepository.searchAll(context, query, filter)
@@ -265,6 +270,9 @@ class RealRepository(
 
     override suspend fun deletePlaylistSongs(playlists: List<PlaylistEntity>) =
         roomRepository.deletePlaylistSongs(playlists)
+
+    override suspend fun deletePlaylistsForProfile(profileId: Long) =
+        roomRepository.deletePlaylistsForProfile(profileId)
 
     override suspend fun favoritePlaylist(): PlaylistEntity =
         roomRepository.favoritePlaylist(context.getString(R.string.favorites))

@@ -30,10 +30,12 @@ import code.name.monkey.retromusic.adapter.base.AbsMultiSelectAdapter
 import code.name.monkey.retromusic.databinding.FragmentMainRecyclerBinding
 import code.name.monkey.retromusic.dialogs.CreatePlaylistDialog
 import code.name.monkey.retromusic.dialogs.ImportPlaylistDialog
+import code.name.monkey.retromusic.dialogs.ProfilePickerDialog
 import code.name.monkey.retromusic.extensions.accentColor
 import code.name.monkey.retromusic.extensions.dip
 import code.name.monkey.retromusic.interfaces.IScrollHelper
 import code.name.monkey.retromusic.util.PreferenceUtil
+import code.name.monkey.retromusic.util.ProfileSwitcher
 import code.name.monkey.retromusic.util.ThemedFastScroller.create
 import com.google.android.material.transition.MaterialFadeThrough
 import me.zhanghai.android.fastscroll.FastScroller
@@ -106,11 +108,18 @@ abstract class AbsRecyclerViewFragment<A : RecyclerView.Adapter<*>, LM : Recycle
                 navOptions
             )
         }
-        val appName = resources.getString(titleRes)
-        binding.appBarLayout.title = appName
+        // Tab name is already shown by the bottom navigation labels; skip the
+        // duplicate collapsing title on library tabs (PlayingQueue still sets its own).
+        if (showAppBarTitle) {
+            binding.appBarLayout.title = resources.getString(titleRes)
+        }
+        ProfileSwitcher.bindProfileButton(requireActivity(), libraryViewModel, toolbar)
     }
 
     abstract val titleRes: Int
+
+    open val showAppBarTitle: Boolean
+        get() = true
 
     private fun setUpRecyclerView() {
         binding.recyclerView.apply {
@@ -211,6 +220,14 @@ abstract class AbsRecyclerViewFragment<A : RecyclerView.Adapter<*>, LM : Recycle
                 childFragmentManager,
                 "ShowCreatePlaylistDialog"
             )
+            R.id.action_search -> {
+                findNavController().navigate(R.id.action_search, null, navOptions)
+                return true
+            }
+            R.id.action_profile_manage -> {
+                ProfilePickerDialog().show(childFragmentManager, "ProfilePicker")
+                return true
+            }
         }
         return false
     }

@@ -19,13 +19,15 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.os.Bundle
-import android.speech.RecognizerIntent
 import android.view.*
+import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.getSystemService
 import androidx.core.view.*
 import androidx.core.widget.doAfterTextChanged
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -42,7 +44,8 @@ import com.google.android.material.shape.MaterialShapeDrawable
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.transition.MaterialFadeThrough
 import kotlinx.coroutines.Job
-import net.yslibrary.android.keyboardvisibilityevent.KeyboardVisibilityEvent
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.*
 
 
@@ -59,6 +62,7 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
     private var query: String? = null
 
     private var job: Job? = null
+    private var historyJob: Job? = null
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -70,10 +74,10 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
         setupRecyclerView()
 
         binding.toolbar.setNavigationOnClickListener { findNavController().navigateUp() }
-        binding.voiceSearch.setOnClickListener { startMicSearch() }
         binding.clearText.setOnClickListener {
             binding.searchView.clearText()
             searchAdapter.swapDataSet(listOf())
+            renderSearchHistory()
         }
         binding.searchView.apply {
             doAfterTextChanged {
@@ -83,18 +87,32 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
                     job?.cancel()
                     libraryViewModel.clearSearchResult()
                     TransitionManager.beginDelayedTransition(binding.appBarLayout)
-                    binding.voiceSearch.isVisible = true
                     binding.clearText.isGone = true
                 }
+                renderSearchHistory()
             }
             focusAndShowKeyboard()
-        }
-        binding.keyboardPopup.apply {
-            accentColor()
-            setOnClickListener {
-                binding.searchView.focusAndShowKeyboard()
+            setOnEditorActionListener { _, actionId, _ ->
+                if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                    val q = text?.toString()?.trim().orEmpty()
+                    if (q.isNotEmpty()) {
+                        PreferenceUtil.pushSearchHistory(q)
+                        renderSearchHistory()
+                    }
+                    hideKeyboard(view)
+                    true
+                } else false
+            }
+            setOnLongClickListener {
+                if (PreferenceUtil.searchHistory.isNotEmpty()) {
+                    PreferenceUtil.clearSearchHistory()
+                    renderSearchHistory()
+                    Toast.makeText(requireContext(), "已清空搜索历史", Toast.LENGTH_SHORT).show()
+                }
+                true
             }
         }
+        renderSearchHistory()
         if (savedInstanceState != null) {
             query = savedInstanceState.getString(QUERY)
         }
@@ -105,18 +123,6 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
         postponeEnterTransition()
         view.doOnPreDraw {
             startPostponedEnterTransition()
-        }
-        libraryViewModel.getFabMargin().observe(viewLifecycleOwner) {
-            binding.keyboardPopup.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-                bottomMargin = it
-            }
-        }
-        KeyboardVisibilityEvent.setEventListener(requireActivity(), viewLifecycleOwner) {
-            if (it) {
-                binding.keyboardPopup.isGone = true
-            } else {
-                binding.keyboardPopup.show()
-            }
         }
         binding.appBarLayout.statusBarForeground =
             MaterialShapeDrawable.createWithElevationOverlay(requireContext())
@@ -140,13 +146,36 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
             }
         }
         binding.searchFilterGroup.setOnCheckedStateChangeListener(this)
+        // 恢复上次筛选类型（在监听器之后、不触发搜索；NO_FILTER 保持未选中）
+        val restoreChipId = filterToChipId(PreferenceUtil.searchLastFilter)
+        if (restoreChipId != View.NO_ID) {
+            binding.searchFilterGroup.check(restoreChipId)
+        }
+    }
+
+    private fun filterToChipId(filter: String): Int = when (filter) {
+        "SONGS" -> R.id.chip_audio
+        "ARTISTS" -> R.id.chip_artists
+        "ALBUMS" -> R.id.chip_albums
+        "ALBUM_ARTISTS" -> R.id.chip_album_artists
+        "GENRES" -> R.id.chip_genres
+        "PLAYLISTS" -> R.id.chip_playlists
+        else -> View.NO_ID
     }
 
     private fun showData(data: List<Any>) {
-        if (data.isNotEmpty()) {
-            searchAdapter.swapDataSet(data)
-        } else {
-            searchAdapter.swapDataSet(ArrayList())
+        searchAdapter.query = query
+        searchAdapter.swapDataSet(data)
+        applyEmptyVisibility()
+    }
+
+    /** 空结果才显提示；无关键词（刚进入/已清空）不占位，交给历史记录 */
+    private fun applyEmptyVisibility() {
+        val hasQuery = !binding.searchView.text.isNullOrBlank()
+        val empty = searchAdapter.itemCount < 1
+        binding.empty.isVisible = empty && hasQuery
+        if (empty && hasQuery) {
+            binding.empty.text = getString(R.string.no_search_results_hint)
         }
     }
 
@@ -163,22 +192,12 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
         searchAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
             override fun onChanged() {
                 super.onChanged()
-                binding.empty.isVisible = searchAdapter.itemCount < 1
+                applyEmptyVisibility()
             }
         })
         binding.recyclerView.apply {
             layoutManager = LinearLayoutManager(requireContext())
             adapter = searchAdapter
-            addOnScrollListener(object : RecyclerView.OnScrollListener() {
-                override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                    super.onScrolled(recyclerView, dx, dy)
-                    if (dy > 0) {
-                        binding.keyboardPopup.shrink()
-                    } else if (dy < 0) {
-                        binding.keyboardPopup.extend()
-                    }
-                }
-            })
         }
     }
 
@@ -190,11 +209,20 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
         }
         this.query = query
         TransitionManager.beginDelayedTransition(binding.appBarLayout)
-        binding.voiceSearch.isGone = query.isNotEmpty()
         binding.clearText.isVisible = query.isNotEmpty()
         val filter = getFilter()
         job?.cancel()
         job = libraryViewModel.search(query, filter)
+
+        // 输入停顿 1s 后自动入库（避免每个中间态都写），解决“看不到历史”
+        historyJob?.cancel()
+        val settled = query.trim()
+        if (settled.length >= 2) {
+            historyJob = viewLifecycleOwner.lifecycleScope.launch {
+                delay(1000)
+                PreferenceUtil.pushSearchHistory(settled)
+            }
+        }
     }
 
     private fun getFilter(): Filter {
@@ -209,30 +237,6 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
         }
     }
 
-    private fun startMicSearch() {
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-        intent.putExtra(
-            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-        )
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-        intent.putExtra(RecognizerIntent.EXTRA_PROMPT, getString(R.string.speech_prompt))
-        try {
-            speechInputLauncher.launch(intent)
-        } catch (e: ActivityNotFoundException) {
-            e.printStackTrace()
-            showToast(getString(R.string.speech_not_supported))
-        }
-    }
-
-    private val speechInputLauncher =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode == RESULT_OK) {
-                val spokenText: String? =
-                    result?.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.get(0)
-                binding.searchView.setText(spokenText)
-            }
-        }
 
     override fun onResume() {
         super.onResume()
@@ -250,6 +254,35 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
         hideKeyboard(view)
     }
 
+
+    private fun renderSearchHistory() {
+        val group = binding.searchHistoryGroup
+        group.removeAllViews()
+        val currentQuery = binding.searchView.text?.toString().orEmpty()
+        val items = PreferenceUtil.searchHistory
+        if (currentQuery.isNotBlank() || items.isEmpty()) {
+            binding.searchHistoryScroll.isGone = true
+            binding.searchHistoryLabel.isGone = true
+            return
+        }
+        binding.searchHistoryScroll.isVisible = true
+        binding.searchHistoryLabel.isVisible = true
+        items.forEach { h ->
+            val chip = Chip(requireContext())
+            chip.text = h
+            chip.isCheckable = false
+            chip.isCloseIconVisible = false
+            chip.setOnClickListener {
+                binding.searchView.setText(h)
+                binding.searchView.setSelection(h.length)
+                PreferenceUtil.pushSearchHistory(h)
+                search(h)
+                renderSearchHistory()
+            }
+            group.addView(chip)
+        }
+    }
+
     private fun hideKeyboard(view: View?) {
         if (view != null) {
             val imm =
@@ -259,6 +292,7 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
     }
 
     override fun onCheckedChanged(group: ChipGroup, checkedIds: MutableList<Int>) {
+        PreferenceUtil.searchLastFilter = getFilter().name
         search(binding.searchView.text.toString())
     }
 

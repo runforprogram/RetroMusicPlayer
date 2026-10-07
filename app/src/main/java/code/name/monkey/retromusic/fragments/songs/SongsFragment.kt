@@ -47,6 +47,9 @@ class SongsFragment : AbsRecyclerViewCustomGridSizeFragment<SongAdapter, GridLay
     override val titleRes: Int
         get() = R.string.songs
 
+    override val showAppBarTitle: Boolean
+        get() = false
+
     override val emptyMessage: Int
         get() = R.string.no_songs
 

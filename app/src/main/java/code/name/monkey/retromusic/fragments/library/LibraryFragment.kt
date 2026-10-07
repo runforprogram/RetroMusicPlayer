@@ -30,11 +30,12 @@ import code.name.monkey.retromusic.R
 import code.name.monkey.retromusic.databinding.FragmentLibraryBinding
 import code.name.monkey.retromusic.dialogs.CreatePlaylistDialog
 import code.name.monkey.retromusic.dialogs.ImportPlaylistDialog
+import code.name.monkey.retromusic.dialogs.ProfilePickerDialog
 import code.name.monkey.retromusic.extensions.setUpMediaRouteButton
 import code.name.monkey.retromusic.extensions.whichFragment
 import code.name.monkey.retromusic.fragments.base.AbsMainActivityFragment
-import code.name.monkey.retromusic.model.CategoryInfo
 import code.name.monkey.retromusic.util.PreferenceUtil
+import code.name.monkey.retromusic.util.ProfileSwitcher
 
 class LibraryFragment : AbsMainActivityFragment(R.layout.fragment_library) {
 
@@ -57,6 +58,7 @@ class LibraryFragment : AbsMainActivityFragment(R.layout.fragment_library) {
         }
         setupNavigationController()
         setupTitle()
+        ProfileSwitcher.bindProfileButton(requireActivity(), libraryViewModel, binding.toolbar)
     }
 
     private fun setupTitle() {
@@ -72,10 +74,6 @@ class LibraryFragment : AbsMainActivityFragment(R.layout.fragment_library) {
         val navInflater = navController.navInflater
         val navGraph = navInflater.inflate(R.navigation.library_graph)
 
-        val categoryInfo: CategoryInfo = PreferenceUtil.libraryCategory.first { it.visible }
-        if (categoryInfo.visible) {
-            navGraph.setStartDestination(categoryInfo.category.id)
-        }
         navController.graph = navGraph
         NavigationUI.setupWithNavController(mainActivity.navigationView, navController)
         navController.addOnDestinationChangedListener { _, _, _ ->
@@ -114,6 +112,14 @@ class LibraryFragment : AbsMainActivityFragment(R.layout.fragment_library) {
                 childFragmentManager,
                 "ShowCreatePlaylistDialog"
             )
+            R.id.action_search -> {
+                findNavController().navigate(R.id.action_search, null, navOptions)
+                return true
+            }
+            R.id.action_profile_manage -> {
+                ProfilePickerDialog().show(childFragmentManager, "ProfilePicker")
+                return true
+            }
         }
         return false
     }

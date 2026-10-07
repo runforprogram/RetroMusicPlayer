@@ -15,6 +15,9 @@
 package code.name.monkey.retromusic.adapter
 
 import android.annotation.SuppressLint
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.StyleSpan
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -47,6 +50,30 @@ class SearchAdapter(
     private val activity: FragmentActivity,
     private var dataSet: List<Any>
 ) : RecyclerView.Adapter<SearchAdapter.ViewHolder>() {
+
+    /** 当前搜索关键词，用于命中高亮 */
+    var query: String? = null
+
+    /** 把 [src] 中所有不区分大小写命中 [query] 的片段加粗高亮 */
+    private fun highlight(src: String?): CharSequence {
+        if (src.isNullOrEmpty()) return src ?: ""
+        val q = query?.trim().orEmpty()
+        if (q.isEmpty()) return src
+        val lower = src.lowercase()
+        val ql = q.lowercase()
+        var idx = lower.indexOf(ql)
+        if (idx < 0) return src
+        val sp = SpannableString(src)
+        while (idx >= 0) {
+            sp.setSpan(
+                StyleSpan(android.graphics.Typeface.BOLD),
+                idx, idx + ql.length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            idx = lower.indexOf(ql, idx + ql.length)
+        }
+        return sp
+    }
 
     @SuppressLint("NotifyDataSetChanged")
     fun swapDataSet(dataSet: List<Any>) {
@@ -92,7 +119,7 @@ class SearchAdapter(
             ALBUM -> {
                 holder.imageTextContainer?.isVisible = true
                 val album = dataSet[position] as Album
-                holder.title?.text = album.title
+                holder.title?.text = highlight(album.title)
                 holder.text?.text = album.artistName
                 Glide.with(activity).asDrawable().albumCoverOptions(album.safeGetFirstSong())
                     .load(RetroGlideExtension.getSongModel(album.safeGetFirstSong()))
@@ -102,7 +129,7 @@ class SearchAdapter(
             ARTIST -> {
                 holder.imageTextContainer?.isVisible = true
                 val artist = dataSet[position] as Artist
-                holder.title?.text = artist.name
+                holder.title?.text = highlight(artist.name)
                 holder.text?.text = MusicUtil.getArtistInfoString(activity, artist)
                 Glide.with(activity).asDrawable().artistImageOptions(artist).load(
                     RetroGlideExtension.getArtistModel(artist)
@@ -112,8 +139,8 @@ class SearchAdapter(
             SONG -> {
                 holder.imageTextContainer?.isVisible = true
                 val song = dataSet[position] as Song
-                holder.title?.text = song.title
-                holder.text?.text = song.albumName
+                holder.title?.text = highlight(song.title)
+                holder.text?.text = highlight(song.albumName)
                 Glide.with(activity).asDrawable().songCoverOptions(song)
                     .load(RetroGlideExtension.getSongModel(song)).into(holder.image!!)
             }
@@ -133,7 +160,7 @@ class SearchAdapter(
 
             PLAYLIST -> {
                 val playlist = dataSet[position] as PlaylistWithSongs
-                holder.title?.text = playlist.playlistEntity.playlistName
+                holder.title?.text = highlight(playlist.playlistEntity.playlistName)
                 //holder.text?.text = MusicUtil.playlistInfoString(activity, playlist.songs)
             }
 

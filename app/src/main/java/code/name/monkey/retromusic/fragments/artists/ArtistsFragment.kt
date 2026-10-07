@@ -51,6 +51,9 @@ class ArtistsFragment : AbsRecyclerViewCustomGridSizeFragment<ArtistAdapter, Gri
     override val titleRes: Int
         get() = R.string.artists
 
+    override val showAppBarTitle: Boolean
+        get() = false
+
     override val emptyMessage: Int
         get() = R.string.no_artists
 

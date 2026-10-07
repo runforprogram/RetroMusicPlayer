@@ -32,6 +32,7 @@ import code.name.monkey.retromusic.extensions.hide
 import code.name.monkey.retromusic.extensions.show
 import code.name.monkey.retromusic.fragments.base.AbsPlayerControlsFragment
 import code.name.monkey.retromusic.fragments.base.goToAlbum
+import code.name.monkey.retromusic.fragments.base.goToArtistByName
 import code.name.monkey.retromusic.helper.MusicPlayerRemote
 import code.name.monkey.retromusic.util.ArtistSeparator
 import code.name.monkey.retromusic.util.PreferenceUtil
@@ -88,21 +89,12 @@ class BlurPlaybackControlsFragment :
             MaterialAlertDialogBuilder(requireContext())
                 .setTitle(getString(R.string.go_to_artist))
                 .setItems(artistNames.toTypedArray()) { _, which ->
-                    // TODO: Navigate to artist details when artistByName() is implemented
-                    android.widget.Toast.makeText(
-                        requireContext(),
-                        getString(R.string.go_to_artist) + ": ${artistNames[which]}",
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
+                    goToArtistByName(requireActivity(), artistNames[which])
                 }
                 .show()
         } else if (artistNames.isNotEmpty()) {
             // Single artist - direct action
-            android.widget.Toast.makeText(
-                requireContext(),
-                getString(R.string.go_to_artist) + ": ${artistNames[0]}",
-                android.widget.Toast.LENGTH_SHORT
-            ).show()
+            goToArtistByName(requireActivity(), artistNames[0])
         }
     }
 

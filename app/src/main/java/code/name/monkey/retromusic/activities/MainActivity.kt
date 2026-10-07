@@ -63,8 +63,10 @@ class MainActivity : AbsCastActivity() {
 
         val categoryInfo: CategoryInfo = PreferenceUtil.libraryCategory.first { it.visible }
         if (categoryInfo.visible) {
-            if (!navGraph.contains(PreferenceUtil.lastTab)) PreferenceUtil.lastTab =
-                categoryInfo.category.id
+            val lastTabVisible = PreferenceUtil.libraryCategory
+                .firstOrNull { it.category.id == PreferenceUtil.lastTab && it.visible } != null
+            if (!navGraph.contains(PreferenceUtil.lastTab) || !lastTabVisible)
+                PreferenceUtil.lastTab = categoryInfo.category.id
             navGraph.setStartDestination(
                 if (PreferenceUtil.rememberLastTab) {
                     PreferenceUtil.lastTab.let {

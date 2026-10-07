@@ -236,6 +236,8 @@
     <string name="no_playing_queue">没有播放的歌曲</string>
     <string name="no_playlists">暂无播放列表</string>
     <string name="no_results">暂无结果</string>
+    <string name="no_search_results_hint">没有找到相关内容。可试试拼音首字母（如“hm”→“黑梦”），或点击上方筛选标签分别搜歌曲 / 歌手 / 专辑。</string>
+    <string name="search_history">搜索历史</string>
     <string name="no_songs">暂无歌曲</string>
     <string name="no_search_results">无搜索结果</string>
     <string name="normal">正常</string>
@@ -504,4 +506,6 @@
     <string name="scan_complete">扫描完成：找到 %1$d 个媒体项目。</string>
     <string name="pref_save_last_directory_summary">切换到文件夹视图时恢复上次使用的目录</string>
     <string name="pref_save_last_directory_title">保存上次目录</string>
+    <string name="profile_manage">用户管理</string>
+    <string name="profile_only_one_hint">当前只有一个用户，可在「用户管理」中添加</string>
 </resources>

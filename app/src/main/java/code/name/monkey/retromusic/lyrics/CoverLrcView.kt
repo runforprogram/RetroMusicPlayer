@@ -17,7 +17,11 @@ import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
+import android.graphics.Shader
 import android.graphics.drawable.Drawable
 import android.os.Looper
 import android.text.Layout
@@ -29,7 +33,7 @@ import android.view.GestureDetector
 import android.view.GestureDetector.SimpleOnGestureListener
 import android.view.MotionEvent
 import android.view.View
-import android.view.animation.AccelerateDecelerateInterpolator
+import android.view.animation.PathInterpolator
 import android.widget.Scroller
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.withSave
@@ -75,6 +79,19 @@ class CoverLrcView @JvmOverloads constructor(
     private var isShowTimeline = false
     private var isTouching = false
     private var isFling = false
+    // 高亮 blend：上一行→当前行颜色/alpha 平滑过渡
+    private var mPrevLine = -1
+    private var mHighlightProgress = 1f
+    private var mHighlightAnimator: ValueAnimator? = null
+    // 边缘渐隐
+    private val mFadePaint = Paint().apply {
+        isAntiAlias = true
+        xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT)
+    }
+    private var mEdgeFadeHeight = 0
+    private var mTopFadeShader: LinearGradient? = null
+    private var mBottomFadeShader: LinearGradient? = null
+    private var mCachedFadeCanvasH = -1
     private var mTextGravity // 歌词显示位置，靠左/居中/靠右
             = 0
     private val hideTimelineRunnable = Runnable {
@@ -160,8 +177,9 @@ class CoverLrcView @JvmOverloads constructor(
                     ) {
                         isShowTimeline = false
                         removeCallbacks(hideTimelineRunnable)
+                        mPrevLine = mCurrentLine
                         mCurrentLine = centerLine
-                        animateCurrentTextSize()
+                        smoothScrollTo(centerLine)
                         return true
                     }
                 } else {
@@ -247,6 +265,8 @@ class CoverLrcView @JvmOverloads constructor(
         mGestureDetector = GestureDetector(context, mSimpleOnGestureListener)
         mGestureDetector!!.setIsLongpressEnabled(false)
         mScroller = Scroller(context)
+        mEdgeFadeHeight =
+            (EDGE_FADE_DP * resources.displayMetrics.density + 0.5f).toInt()
     }
 
     fun setNormalColor(normalColor: Int) {
@@ -325,10 +345,10 @@ class CoverLrcView @JvmOverloads constructor(
             }
             val line = findShowLine(time + 300L)
             if (line != mCurrentLine) {
+                mPrevLine = mCurrentLine
                 mCurrentLine = line
                 if (!isShowTimeline) {
                     smoothScrollTo(line)
-                    animateCurrentTextSize()
                 } else {
                     invalidate()
                 }
@@ -349,7 +369,8 @@ class CoverLrcView @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val centerY = height / 2
+        val viewH = height
+        val centerY = viewH / 2
 
         if (!hasLrc()) {
             mLrcPaint.color = mCurrentTextColor
@@ -366,51 +387,128 @@ class CoverLrcView @JvmOverloads constructor(
             drawText(canvas, staticLayout, centerY.toFloat())
             return
         }
-        val centerLine = centerLine
-        if (isShowTimeline) {
-            mPlayDrawable?.draw(canvas)
-            mTimePaint.color = mTimeTextColor
-            val timeText = LrcUtils.formatTime(mLrcEntryList[centerLine].time)
-            val timeX = (width - mTimeTextWidth / 2).toFloat()
-            val timeY = centerY - (mTimeFontMetrics!!.descent + mTimeFontMetrics!!.ascent) / 2
-            canvas.drawText(timeText, timeX, timeY, mTimePaint)
-        }
+
+        val anchorY = (viewH * ANCHOR_RATIO).toInt()
+        val timelineLine = if (isShowTimeline) centerLine else -1
+
+        // 开一个 offscreen layer，便于用 DST_OUT 将顶部/底部渐隐
+        canvas.saveLayer(0f, 0f, width.toFloat(), viewH.toFloat(), null)
         canvas.translate(0f, mOffset)
+
         var y = 0f
         for (i in mLrcEntryList.indices) {
             if (i > 0) {
                 y += ((mLrcEntryList[i - 1].height + mLrcEntryList[i].height shr 1)
                         + mDividerHeight)
             }
-            if (i == mCurrentLine) {
-                mLrcPaint.textSize = mCurrentTextSize
-                mLrcPaint.color = mCurrentTextColor
-            } else if (isShowTimeline && i == centerLine) {
-                mLrcPaint.color = mTimelineTextColor
-            } else {
-                mLrcPaint.textSize = mNormalTextSize
-                mLrcPaint.color = mNormalTextColor
+            val staticLayout = mLrcEntryList[i].staticLayout
+            // StaticLayout 内部克隆了 paint，必须改它自身才生效（原代码改 mLrcPaint 是死代码）
+            val linePaint = staticLayout.paint
+
+            var blend = 0f
+            when {
+                i == mCurrentLine -> blend = mHighlightProgress
+                mPrevLine >= 0 && i == mPrevLine && mPrevLine != mCurrentLine ->
+                    blend = 1f - mHighlightProgress
             }
-            drawText(canvas, mLrcEntryList[i].staticLayout, y)
+            val dist = abs(i - mCurrentLine)
+            val distAlpha = maxOf(FADE_MIN, 1f - dist * FADE_STEP)
+
+            // 拖动预览：锥点行用 timeline 色高亮
+            if (timelineLine == i) {
+                linePaint.color = mTimelineTextColor
+                linePaint.isFakeBoldText = true
+                drawText(canvas, staticLayout, y)
+                continue
+            }
+
+            val base = blendColor(mNormalTextColor, mCurrentTextColor, blend)
+            linePaint.color = applyAlpha(base, distAlpha)
+            linePaint.isFakeBoldText = blend > 0.5f
+            drawText(canvas, staticLayout, y)
         }
+
+        canvas.translate(0f, -mOffset)  // 取消位移（仍在 layer 内）
+
+        if (mEdgeFadeHeight > 0 && viewH > mEdgeFadeHeight * 2) {
+            ensureFadeShaders(viewH)
+            mFadePaint.shader = mTopFadeShader
+            canvas.drawRect(0f, 0f, width.toFloat(), mEdgeFadeHeight.toFloat(), mFadePaint)
+            mFadePaint.shader = mBottomFadeShader
+            canvas.drawRect(
+                0f, (viewH - mEdgeFadeHeight).toFloat(),
+                width.toFloat(), viewH.toFloat(), mFadePaint
+            )
+        }
+        canvas.restore()
+
+        // 拖动预览覆盖层（在 layer 之外，不受边缘渐隐影响）
+        if (timelineLine >= 0) {
+            drawTimelineOverlay(canvas, timelineLine, anchorY)
+        }
+    }
+
+    /** 画拖动预览：分割线 + 播放箭头 + 时间戳 */
+    private fun drawTimelineOverlay(canvas: Canvas, line: Int, anchorY: Int) {
+        val timeText = LrcUtils.formatTime(mLrcEntryList[line].time)
+        val left = mLrcPadding
+
+        mTimePaint.color = mTimelineColor
+        mTimePaint.textAlign = Paint.Align.LEFT
+        canvas.drawLine(
+            left + mTimeTextWidth, anchorY.toFloat(),
+            width - left, anchorY.toFloat(), mTimePaint
+        )
+
+        val dw = mDrawableWidth
+        val arrowCx = (left + mTimeTextWidth / 2f).toInt()
+        val arrowTop = anchorY - dw - 4
+        mPlayDrawable?.let { d ->
+            d.setTint(mTimelineColor)
+            d.setBounds(arrowCx - dw / 2, arrowTop, arrowCx + dw / 2, arrowTop + dw)
+            d.draw(canvas)
+        }
+
+        mTimePaint.color = mTimeTextColor
+        mTimePaint.textAlign = Paint.Align.CENTER
+        val textY = anchorY + dw + 4 - mTimeFontMetrics!!.ascent
+        canvas.drawText(timeText, left + mTimeTextWidth / 2f, textY, mTimePaint)
+    }
+
+    /** ARGB 两色按 t∈[0,1] 线性插值 */
+    private fun blendColor(from: Int, to: Int, t: Float): Int {
+        val a = (from ushr 24) + (((to ushr 24) - (from ushr 24)) * t).toInt()
+        val r = ((from shr 16) and 0xFF) + ((((to shr 16) and 0xFF) - ((from shr 16) and 0xFF)) * t).toInt()
+        val g = ((from shr 8) and 0xFF) + ((((to shr 8) and 0xFF) - ((from shr 8) and 0xFF)) * t).toInt()
+        val b = (from and 0xFF) + (((to and 0xFF) - (from and 0xFF)) * t).toInt()
+        return (a shl 24) or (r shl 16) or (g shl 8) or b
+    }
+
+    /** 把整体 alpha 乘以 factor∈[0,1] */
+    private fun applyAlpha(color: Int, factor: Float): Int {
+        val a = ((color ushr 24) * factor).toInt()
+        return (a shl 24) or (color and 0x00FFFFFF)
+    }
+
+    private fun ensureFadeShaders(viewH: Int) {
+        if (mCachedFadeCanvasH == viewH && mTopFadeShader != null && mBottomFadeShader != null) {
+            return
+        }
+        mTopFadeShader = LinearGradient(
+            0f, 0f, 0f, mEdgeFadeHeight.toFloat(),
+            0xFF000000.toInt(), 0x00000000, Shader.TileMode.CLAMP
+        )
+        mBottomFadeShader = LinearGradient(
+            0f, (viewH - mEdgeFadeHeight).toFloat(), 0f, viewH.toFloat(),
+            0x00000000, 0xFF000000.toInt(), Shader.TileMode.CLAMP
+        )
+        mCachedFadeCanvasH = viewH
     }
 
     private fun drawText(canvas: Canvas, staticLayout: StaticLayout, y: Float) {
         canvas.withSave {
             translate(mLrcPadding, y - (staticLayout.height shr 1))
             staticLayout.draw(this)
-        }
-    }
-
-    fun animateCurrentTextSize() {
-        val currentTextSize = mCurrentTextSize
-        ValueAnimator.ofFloat(mNormalTextSize, currentTextSize).apply {
-            addUpdateListener {
-                mCurrentTextSize = it.animatedValue as Float
-                invalidate()
-            }
-            duration = mAnimationDuration
-            start()
         }
     }
 
@@ -459,7 +557,7 @@ class CoverLrcView @JvmOverloads constructor(
 
     private fun initPlayDrawable() {
         val l = (mTimeTextWidth - mDrawableWidth) / 2
-        val t = height / 2 - mDrawableWidth / 2
+        val t = (height * ANCHOR_RATIO).toInt() - mDrawableWidth / 2
         val r = l + mDrawableWidth
         val b = t + mDrawableWidth
         mPlayDrawable!!.setBounds(l, t, r, b)
@@ -472,11 +570,12 @@ class CoverLrcView @JvmOverloads constructor(
         for (lrcEntry in mLrcEntryList) {
             lrcEntry.init(mLrcPaint, lrcWidth.toInt(), mTextGravity)
         }
-        mOffset = (height / 2).toFloat()
+        mOffset = height * ANCHOR_RATIO
     }
 
     fun reset() {
         endAnimation()
+        endHighlightAnimation()
         mScroller!!.forceFinished(true)
         isShowTimeline = false
         isTouching = false
@@ -485,6 +584,8 @@ class CoverLrcView @JvmOverloads constructor(
         mLrcEntryList.clear()
         mOffset = 0f
         mCurrentLine = 0
+        mPrevLine = -1
+        mHighlightProgress = 1f
         invalidate()
     }
 
@@ -497,12 +598,35 @@ class CoverLrcView @JvmOverloads constructor(
         endAnimation()
         mAnimator = ValueAnimator.ofFloat(mOffset, offset).apply {
             this.duration = duration
-            interpolator = AccelerateDecelerateInterpolator()
+            interpolator = EASE_OUT_IN
             addUpdateListener { animation: ValueAnimator ->
                 mOffset = animation.animatedValue as Float
                 invalidate()
             }
             start()
+        }
+
+        // 同步跑一次高亮 blend：0→1
+        endHighlightAnimation()
+        if (duration > 0 && mPrevLine != line) {
+            mHighlightProgress = 0f
+            mHighlightAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+                this.duration = duration
+                interpolator = EASE_OUT_IN
+                addUpdateListener {
+                    mHighlightProgress = it.animatedValue as Float
+                    invalidate()
+                }
+                start()
+            }
+        } else {
+            mHighlightProgress = 1f
+        }
+    }
+
+    private fun endHighlightAnimation() {
+        if (mHighlightAnimator != null && mHighlightAnimator!!.isRunning) {
+            mHighlightAnimator!!.end()
         }
     }
 
@@ -546,7 +670,7 @@ class CoverLrcView @JvmOverloads constructor(
     private fun getOffset(line: Int): Float {
         if (mLrcEntryList.isEmpty()) return 0F
         if (mLrcEntryList[line].offset == Float.MIN_VALUE) {
-            var offset = (height / 2).toFloat()
+            var offset = height * ANCHOR_RATIO
             for (i in 1..line) {
                 offset -= ((mLrcEntryList[i - 1].height + mLrcEntryList[i].height shr 1)
                         + mDividerHeight)
@@ -574,6 +698,15 @@ class CoverLrcView @JvmOverloads constructor(
     companion object {
         private const val ADJUST_DURATION: Long = 100
         private const val TIMELINE_KEEP_TIME = 4 * DateUtils.SECOND_IN_MILLIS
+        // Material FastOutSlowIn 曲线（与全屏 LrcView 对齐）
+        private val EASE_OUT_IN = PathInterpolator(0.4f, 0f, 0.2f, 1f)
+        // 距离淡出：离当前行每远 1 行 alpha 减少 0.17；最远不低于 0.32
+        private const val FADE_STEP = 0.17f
+        private const val FADE_MIN = 0.32f
+        // 当前行锥点：屏幕 42% 高度（下留更多预览空间）
+        private const val ANCHOR_RATIO = 0.42f
+        // 边缘渐隐高度（dp）
+        private const val EDGE_FADE_DP = 72f
     }
 
     init {

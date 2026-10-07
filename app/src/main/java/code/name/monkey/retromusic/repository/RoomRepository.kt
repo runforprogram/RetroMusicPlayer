@@ -43,6 +43,7 @@ interface RoomRepository {
     suspend fun isSongFavorite(context: Context, songId: Long): Boolean
     fun checkPlaylistExists(playListId: Long): LiveData<Boolean>
     fun getPlaylist(playlistId: Long): LiveData<PlaylistWithSongs>
+    suspend fun deletePlaylistsForProfile(profileId: Long)
 }
 
 class RealRoomRepository(
@@ -52,31 +53,38 @@ class RealRoomRepository(
 ) : RoomRepository {
     @WorkerThread
     override suspend fun createPlaylist(playlistEntity: PlaylistEntity): Long =
-        playlistDao.createPlaylist(playlistEntity)
+        playlistDao.createPlaylist(
+            PlaylistEntity(
+                playListId = playlistEntity.playListId,
+                playlistName = playlistEntity.playlistName,
+                playlistCreator = PreferenceUtil.currentProfileId
+            )
+        )
 
     @WorkerThread
     override suspend fun checkPlaylistExists(playlistName: String): List<PlaylistEntity> =
-        playlistDao.playlist(playlistName)
+        playlistDao.playlist(playlistName, PreferenceUtil.currentProfileId)
 
     @WorkerThread
-    override suspend fun playlists(): List<PlaylistEntity> = playlistDao.playlists()
+    override suspend fun playlists(): List<PlaylistEntity> =
+        playlistDao.playlistsForProfile(PreferenceUtil.currentProfileId)
 
     @WorkerThread
     override suspend fun playlistWithSongs(): List<PlaylistWithSongs> {
         val collator = Collator.getInstance()
         return when (PreferenceUtil.playlistSortOrder) {
             PLAYLIST_A_Z ->
-                playlistDao.playlistsWithSongs().sortedWith { p1, p2 ->
+                playlistDao.playlistsWithSongsForProfile(PreferenceUtil.currentProfileId).sortedWith { p1, p2 ->
                     collator.compare(p1.playlistEntity.playlistName, p2.playlistEntity.playlistName)
                 }
-            PLAYLIST_Z_A -> playlistDao.playlistsWithSongs()
+            PLAYLIST_Z_A -> playlistDao.playlistsWithSongsForProfile(PreferenceUtil.currentProfileId)
                 .sortedWith { p1, p2 ->
                     collator.compare(p2.playlistEntity.playlistName, p1.playlistEntity.playlistName)
                 }
-            PLAYLIST_SONG_COUNT -> playlistDao.playlistsWithSongs().sortedBy { it.songs.size }
-            PLAYLIST_SONG_COUNT_DESC -> playlistDao.playlistsWithSongs()
+            PLAYLIST_SONG_COUNT -> playlistDao.playlistsWithSongsForProfile(PreferenceUtil.currentProfileId).sortedBy { it.songs.size }
+            PLAYLIST_SONG_COUNT_DESC -> playlistDao.playlistsWithSongsForProfile(PreferenceUtil.currentProfileId)
                 .sortedByDescending { it.songs.size }
-            else -> playlistDao.playlistsWithSongs().sortedWith { p1, p2 ->
+            else -> playlistDao.playlistsWithSongsForProfile(PreferenceUtil.currentProfileId).sortedWith { p1, p2 ->
                 collator.compare(p1.playlistEntity.playlistName, p2.playlistEntity.playlistName)
             }
         }
@@ -115,12 +123,12 @@ class RealRoomRepository(
         }
 
     override suspend fun favoritePlaylist(favorite: String): PlaylistEntity {
-        val playlist: PlaylistEntity? = playlistDao.playlist(favorite).firstOrNull()
+        val playlist: PlaylistEntity? = playlistDao.playlist(favorite, PreferenceUtil.currentProfileId).firstOrNull()
         return if (playlist != null) {
             playlist
         } else {
             createPlaylist(PlaylistEntity(playlistName = favorite))
-            playlistDao.playlist(favorite).first()
+            playlistDao.playlist(favorite, PreferenceUtil.currentProfileId).first()
         }
     }
 
@@ -142,11 +150,11 @@ class RealRoomRepository(
     override fun historySongs(): List<HistoryEntity> = historyDao.historySongs()
 
     override fun favoritePlaylistLiveData(favorite: String): LiveData<List<SongEntity>> =
-        playlistDao.favoritesSongsLiveData(favorite)
+        playlistDao.favoritesSongsLiveData(favorite, PreferenceUtil.currentProfileId)
 
     override suspend fun favoritePlaylistSongs(favorite: String): List<SongEntity> =
-        if (playlistDao.playlist(favorite).isNotEmpty()) playlistDao.favoritesSongs(
-            playlistDao.playlist(favorite).first().playListId
+        if (playlistDao.playlist(favorite, PreferenceUtil.currentProfileId).isNotEmpty()) playlistDao.favoritesSongs(
+            playlistDao.playlist(favorite, PreferenceUtil.currentProfileId).first().playListId
         ) else emptyList()
 
     override suspend fun upsertSongInPlayCount(playCountEntity: PlayCountEntity) =
@@ -175,9 +183,14 @@ class RealRoomRepository(
 
     override suspend fun isSongFavorite(context: Context, songId: Long): Boolean {
         return playlistDao.isSongExistsInPlaylist(
-            playlistDao.playlist(context.getString(R.string.favorites)).firstOrNull()?.playListId
+            playlistDao.playlist(context.getString(R.string.favorites), PreferenceUtil.currentProfileId).firstOrNull()?.playListId
                 ?: -1,
             songId
         ).isNotEmpty()
+    }
+
+    override suspend fun deletePlaylistsForProfile(profileId: Long) {
+        playlistDao.deletePlaylistSongsForProfile(profileId)
+        playlistDao.deletePlaylistEntitiesForProfile(profileId)
     }
 }

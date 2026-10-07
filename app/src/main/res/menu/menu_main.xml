@@ -86,14 +86,18 @@
         <menu></menu>
     </item>
     <item
+        android:id="@+id/action_search"
+        android:icon="@drawable/ic_search"
+        android:title="@string/action_search"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/action_profile_manage"
+        android:title="@string/profile_manage"
+        app:showAsAction="never" />
+    <item
         android:orderInCategory="10"
         android:id="@+id/action_settings"
         android:icon="@drawable/ic_settings"
         android:title="@string/action_settings"
         app:showAsAction="never" />
-    <item
-        android:id="@+id/action_cast"
-        android:title="@string/action_cast"
-        app:actionProviderClass="androidx.mediarouter.app.MediaRouteActionProvider"
-        app:showAsAction="always" />
 </menu>

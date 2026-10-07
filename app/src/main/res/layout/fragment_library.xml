@@ -22,10 +22,15 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="?attr/colorSurface"
-                app:navigationIcon="@drawable/ic_search"
                 app:popupTheme="?attr/toolbarPopupTheme"
                 app:title="@null"
                 tools:ignore="UnusedAttribute">
+
+    <include
+        layout="@layout/action_profile"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="start|center_vertical" />
 
                 <com.google.android.material.textview.MaterialTextView
                     android:id="@+id/appNameText"

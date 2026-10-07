@@ -35,6 +35,7 @@ import code.name.monkey.retromusic.adapter.HomeAdapter
 import code.name.monkey.retromusic.databinding.FragmentHomeBinding
 import code.name.monkey.retromusic.dialogs.CreatePlaylistDialog
 import code.name.monkey.retromusic.dialogs.ImportPlaylistDialog
+import code.name.monkey.retromusic.dialogs.ProfilePickerDialog
 import code.name.monkey.retromusic.extensions.accentColor
 import code.name.monkey.retromusic.extensions.dip
 import code.name.monkey.retromusic.extensions.elevatedAccentColor
@@ -49,6 +50,7 @@ import code.name.monkey.retromusic.helper.MusicPlayerRemote
 import code.name.monkey.retromusic.interfaces.IScrollHelper
 import code.name.monkey.retromusic.model.Song
 import code.name.monkey.retromusic.util.PreferenceUtil
+import code.name.monkey.retromusic.util.ProfileSwitcher
 import code.name.monkey.retromusic.util.PreferenceUtil.userName
 import com.bumptech.glide.Glide
 import com.google.android.material.transition.MaterialFadeThrough
@@ -304,6 +306,14 @@ class HomeFragment :
                 childFragmentManager,
                 "ShowCreatePlaylistDialog"
             )
+            R.id.action_search -> {
+                findNavController().navigate(R.id.action_search, null, navOptions)
+                return true
+            }
+            R.id.action_profile_manage -> {
+                ProfilePickerDialog().show(childFragmentManager, "ProfilePicker")
+                return true
+            }
         }
         return false
     }

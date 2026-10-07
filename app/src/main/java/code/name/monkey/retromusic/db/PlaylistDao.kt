@@ -28,8 +28,18 @@ interface PlaylistDao {
     @Query("SELECT * FROM PlaylistEntity WHERE playlist_name = :name")
     fun playlist(name: String): List<PlaylistEntity>
 
+    @Query("SELECT * FROM PlaylistEntity WHERE playlist_name = :name AND playlist_creator = :profileId")
+    fun playlist(name: String, profileId: Long): List<PlaylistEntity>
+
     @Query("SELECT * FROM PlaylistEntity")
     suspend fun playlists(): List<PlaylistEntity>
+
+    @Query("SELECT * FROM PlaylistEntity WHERE playlist_creator = :profileId")
+    suspend fun playlistsForProfile(profileId: Long): List<PlaylistEntity>
+
+    @Transaction
+    @Query("SELECT * FROM PlaylistEntity WHERE playlist_creator = :profileId")
+    suspend fun playlistsWithSongsForProfile(profileId: Long): List<PlaylistWithSongs>
 
     @Query("DELETE FROM SongEntity WHERE playlist_creator_id = :playlistId")
     suspend fun deletePlaylistSongs(playlistId: Long)
@@ -64,8 +74,14 @@ interface PlaylistDao {
     suspend fun deletePlaylistSongs(songs: List<SongEntity>)
 
     @RewriteQueriesToDropUnusedColumns
-    @Query("SELECT * FROM SongEntity ,(SELECT playlist_id FROM PlaylistEntity WHERE playlist_name= :playlistName LIMIT 1) AS playlist WHERE playlist_creator_id= playlist.playlist_id")
-    fun favoritesSongsLiveData(playlistName: String): LiveData<List<SongEntity>>
+    @Query("SELECT * FROM SongEntity ,(SELECT playlist_id FROM PlaylistEntity WHERE playlist_name= :playlistName AND playlist_creator = :profileId LIMIT 1) AS playlist WHERE playlist_creator_id= playlist.playlist_id")
+    fun favoritesSongsLiveData(playlistName: String, profileId: Long): LiveData<List<SongEntity>>
+
+    @Query("DELETE FROM SongEntity WHERE playlist_creator_id IN (SELECT playlist_id FROM PlaylistEntity WHERE playlist_creator = :profileId)")
+    suspend fun deletePlaylistSongsForProfile(profileId: Long)
+
+    @Query("DELETE FROM PlaylistEntity WHERE playlist_creator = :profileId")
+    suspend fun deletePlaylistEntitiesForProfile(profileId: Long)
 
     @Query("SELECT * FROM SongEntity WHERE playlist_creator_id= :playlistId")
     fun favoritesSongs(playlistId: Long): List<SongEntity>

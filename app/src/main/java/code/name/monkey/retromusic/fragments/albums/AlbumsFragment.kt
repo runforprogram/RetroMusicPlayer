@@ -50,6 +50,9 @@ class AlbumsFragment : AbsRecyclerViewCustomGridSizeFragment<AlbumAdapter, GridL
     override val titleRes: Int
         get() = R.string.albums
 
+    override val showAppBarTitle: Boolean
+        get() = false
+
     override val emptyMessage: Int
         get() = R.string.no_albums
 

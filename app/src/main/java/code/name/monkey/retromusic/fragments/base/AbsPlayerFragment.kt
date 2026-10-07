@@ -40,6 +40,7 @@ import androidx.viewpager.widget.ViewPager
 import code.name.monkey.appthemehelper.util.VersionUtils
 import code.name.monkey.retromusic.EXTRA_ALBUM_ID
 import code.name.monkey.retromusic.EXTRA_ARTIST_ID
+import code.name.monkey.retromusic.EXTRA_ARTIST_NAME
 import code.name.monkey.retromusic.R
 import code.name.monkey.retromusic.activities.MainActivity
 import code.name.monkey.retromusic.activities.tageditor.AbsTagEditorActivity
@@ -431,6 +432,29 @@ fun goToArtist(activity: Activity) {
         findNavController(R.id.fragment_container).navigate(
             R.id.artistDetailsFragment,
             bundleOf(EXTRA_ARTIST_ID to song.artistId)
+        )
+    }
+}
+
+/**
+ * 按歌手名跳转到歌手详情（走 albumArtistDetailsFragment，按名字加载）。
+ * 适用于多艺人 / feat 场景：setArtistLinks 回调传出的具体名字。
+ */
+fun goToArtistByName(activity: Activity, artistName: String) {
+    if (activity !is MainActivity) return
+    if (artistName.isBlank()) return
+    activity.apply {
+        currentFragment(R.id.fragment_container)?.exitTransition = null
+
+        //Hide Bottom Bar First, else Bottom Sheet doesn't collapse fully
+        setBottomNavVisibility(false)
+        if (getBottomSheetBehavior().state == BottomSheetBehavior.STATE_EXPANDED) {
+            collapsePanel()
+        }
+
+        findNavController(R.id.fragment_container).navigate(
+            R.id.albumArtistDetailsFragment,
+            bundleOf(EXTRA_ARTIST_NAME to artistName)
         )
     }
 }

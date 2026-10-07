@@ -19,7 +19,11 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Canvas;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
+import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
 import android.os.AsyncTask;
 import android.os.Looper;
@@ -32,7 +36,8 @@ import android.util.AttributeSet;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.animation.AccelerateDecelerateInterpolator;
+import android.view.animation.PathInterpolator;
+import android.view.animation.LinearInterpolator;
 import android.widget.Scroller;
 
 import androidx.core.content.ContextCompat;
@@ -52,6 +57,20 @@ import code.name.monkey.retromusic.R;
 public class LrcView extends View {
     private static final long ADJUST_DURATION = 0;
     private static final long TIMELINE_KEEP_TIME = 4 * DateUtils.SECOND_IN_MILLIS;
+
+    // Material FastOutSlowIn 曲线（视觉更"贴手"，替代 AccelerateDecelerate）
+    private static final PathInterpolator EASE_OUT_IN =
+            new PathInterpolator(0.4f, 0f, 0.2f, 1f);
+    // 距离淡出：离当前行每远 1 行，alpha 减少 0.17；最远不低于 0.32
+    private static final float FADE_STEP = 0.17f;
+    private static final float FADE_MIN = 0.32f;
+    // 当前行锥点：屏幕 42% 高度（原 50%），下留更多预览空间
+    private static final float ANCHOR_RATIO = 0.42f;
+    // 边缘渐隐高度（dp）
+    private static final float EDGE_FADE_DP = 72f;
+    // Karaoke 默认行时长（下一行时间缺失时的兵底）
+    private static final long DEFAULT_LINE_DURATION_MS = 3000L;
+    private static final long MIN_LINE_DURATION_MS = 500L;
 
     private final List<LrcEntry> mLrcEntryList = new ArrayList<>();
     private final TextPaint mLrcPaint = new TextPaint();
@@ -77,6 +96,20 @@ public class LrcView extends View {
     private Scroller mScroller;
     private float mOffset;
     private int mCurrentLine;
+    private int mPrevLine = -1;
+    private float mHighlightProgress = 1f;
+    private ValueAnimator mHighlightAnimator;
+    // Karaoke 扫光内部状态
+    private long mLineStartMs = 0;
+    private long mLineDurationMs = 0;
+    private float mLineProgress = 0f;
+    private ValueAnimator mKaraokeAnimator;
+    // 边缘渐隐
+    private final Paint mFadePaint = new Paint();
+    private int mEdgeFadeHeight = 0;
+    private LinearGradient mTopFadeShader;
+    private LinearGradient mBottomFadeShader;
+    private int mCachedFadeCanvasH = -1;
     private Object mFlag;
     private boolean isShowTimeline;
     private boolean isTouching;
@@ -267,6 +300,11 @@ public class LrcView extends View {
         mGestureDetector = new GestureDetector(getContext(), mSimpleOnGestureListener);
         mGestureDetector.setIsLongpressEnabled(false);
         mScroller = new Scroller(getContext());
+
+        mEdgeFadeHeight =
+                (int) (EDGE_FADE_DP * getResources().getDisplayMetrics().density + 0.5f);
+        mFadePaint.setFlags(Paint.ANTI_ALIAS_FLAG);
+        mFadePaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_OUT));
     }
 
     public void setCurrentColor(int currentColor) {
@@ -389,12 +427,16 @@ public class LrcView extends View {
 
                     int line = findShowLine(time);
                     if (line != mCurrentLine) {
+                        mPrevLine = mCurrentLine;
                         mCurrentLine = line;
                         if (!isShowTimeline) {
                             smoothScrollTo(line);
                         } else {
                             invalidate();
                         }
+                        startKaraoke(line, time);
+                    } else {
+                        syncKaraoke(time);
                     }
                 });
     }
@@ -420,7 +462,8 @@ public class LrcView extends View {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
 
-        int centerY = getHeight() / 2;
+        int viewH = getHeight();
+        int centerY = viewH / 2;
 
         if (!hasLrc()) {
             mLrcPaint.setColor(mCurrentTextColor);
@@ -438,6 +481,12 @@ public class LrcView extends View {
             return;
         }
 
+        // 拖动预览：当前靠锚点最近的一行（仅在 isShowTimeline 时有意义）
+        int anchorY = (int) (viewH * ANCHOR_RATIO);
+        int timelineLine = isShowTimeline ? findNearestLineToAnchor() : -1;
+
+        // 开一个 offscreen layer，便于用 DST_OUT 将歌词顶部/底部渐隐掉
+        canvas.saveLayer(0, 0, getWidth(), viewH, null);
         canvas.translate(0, mOffset);
 
         float y = 0;
@@ -447,15 +496,159 @@ public class LrcView extends View {
                         ((mLrcEntryList.get(i - 1).getHeight() + mLrcEntryList.get(i).getHeight()) >> 1)
                                 + mDividerHeight;
             }
-            if (i <= mCurrentLine) {
-                mLrcPaint.setTextSize(mNormalTextSize);
-                mLrcPaint.setColor(mCurrentTextColor);
-            } else {
-                mLrcPaint.setTextSize(mNormalTextSize);
-                mLrcPaint.setColor(mNormalTextColor);
+            LrcEntry entry = mLrcEntryList.get(i);
+            StaticLayout sl = entry.getStaticLayout();
+            if (sl == null) {
+                continue;
             }
-            drawText(canvas, mLrcEntryList.get(i).getStaticLayout(), y);
+            // 行当前性 blend
+            float blend = 0f;
+            if (i == mCurrentLine) {
+                blend = mHighlightProgress;
+            } else if (mPrevLine >= 0 && i == mPrevLine && mPrevLine != mCurrentLine) {
+                blend = 1f - mHighlightProgress;
+            }
+            int dist = Math.abs(i - mCurrentLine);
+            float distAlpha = Math.max(FADE_MIN, 1f - dist * FADE_STEP);
+            TextPaint linePaint = sl.getPaint();
+
+            // 拖动预览：锚点行用 timeline 色整行高亮，给用户明确的"停在这一句"反馈
+            if (timelineLine == i) {
+                linePaint.setColor(mTimelineTextColor);
+                linePaint.setFakeBoldText(true);
+                drawText(canvas, sl, y);
+                continue;
+            }
+            float lineTop = y - (sl.getHeight() >> 1);
+            float lineBottom = y + (sl.getHeight() >> 1);
+
+            if (i == mCurrentLine && mLineDurationMs > 0) {
+                // Karaoke 扫光：已唱 (左) = currentColor、未唱 (右) = normalColor
+                float textLeft = mLrcPadding;
+                float sweepX = textLeft + sl.getWidth() * Math.max(0f, Math.min(1f, mLineProgress));
+                int sungColor = applyAlpha(mCurrentTextColor, 1f);
+                int unsungColor = applyAlpha(mNormalTextColor, distAlpha);
+
+                // 未唱部分
+                linePaint.setColor(unsungColor);
+                linePaint.setFakeBoldText(true);
+                canvas.save();
+                canvas.clipRect(sweepX, lineTop, getWidth(), lineBottom);
+                drawText(canvas, sl, y);
+                canvas.restore();
+
+                // 已唱部分
+                linePaint.setColor(sungColor);
+                canvas.save();
+                canvas.clipRect(0, lineTop, sweepX, lineBottom);
+                drawText(canvas, sl, y);
+                canvas.restore();
+            } else {
+                int base = blendColor(mNormalTextColor, mCurrentTextColor, blend);
+                linePaint.setColor(applyAlpha(base, distAlpha));
+                linePaint.setFakeBoldText(blend > 0.5f);
+                drawText(canvas, sl, y);
+            }
         }
+
+        canvas.translate(0, -mOffset);  // 取消 translate（仍在 layer 内，不能 restore）
+
+        // 顶部/底部渐隐遮罩（仍在 layer 内）
+        if (mEdgeFadeHeight > 0 && viewH > mEdgeFadeHeight * 2) {
+            ensureFadeShaders(viewH);
+            mFadePaint.setShader(mTopFadeShader);
+            canvas.drawRect(0, 0, getWidth(), mEdgeFadeHeight, mFadePaint);
+            mFadePaint.setShader(mBottomFadeShader);
+            canvas.drawRect(0, viewH - mEdgeFadeHeight, getWidth(), viewH, mFadePaint);
+        }
+        canvas.restore();  // 弹出 saveLayer
+
+        // 拖动预览覆盖层（在 layer 之外，不受边缘渐隐影响）
+        if (timelineLine >= 0) {
+            drawTimeline(canvas, timelineLine, anchorY);
+        }
+    }
+
+    /** 找到屏幕上最靠近锚点（当前行位置）的一行 */
+    private int findNearestLineToAnchor() {
+        int best = mCurrentLine;
+        float bestDist = Float.MAX_VALUE;
+        for (int i = 0; i < mLrcEntryList.size(); i++) {
+            float d = Math.abs(mOffset - getOffset(i));
+            if (d < bestDist) {
+                bestDist = d;
+                best = i;
+            }
+        }
+        return best;
+    }
+
+    /** 画拖动预览：分割线 + 播放箭头 + 时间戳 */
+    private void drawTimeline(Canvas canvas, int line, int centerY) {
+        LrcEntry entry = mLrcEntryList.get(line);
+        String timeText = formatTime(entry.getTime());
+        float left = mLrcPadding;
+        float dividerStart = left + mTimeTextWidth;
+        float dividerEnd = getWidth() - left;
+
+        // 分割线
+        mTimePaint.setColor(mTimelineColor);
+        canvas.drawLine(dividerStart, centerY, dividerEnd, centerY, mTimePaint);
+
+        // 播放箭头（线上方）
+        int dw = mDrawableWidth;
+        int arrowTop = centerY - dw - 4;
+        int arrowCx = (int) (left + mTimeTextWidth / 2f);
+        mPlayDrawable.setTint(mTimelineColor);
+        mPlayDrawable.setBounds(arrowCx - dw / 2, arrowTop, arrowCx + dw / 2, arrowTop + dw);
+        mPlayDrawable.draw(canvas);
+
+        // 时间戳（线下方）
+        mTimePaint.setColor(mTimeTextColor);
+        mTimePaint.setTextAlign(Paint.Align.CENTER);
+        float textY = centerY + dw + 4 - mTimeFontMetrics.ascent;
+        canvas.drawText(timeText, left + mTimeTextWidth / 2f, textY, mTimePaint);
+    }
+
+    private String formatTime(long ms) {
+        long totalSec = Math.max(0, ms / 1000);
+        long m = totalSec / 60;
+        long s = totalSec % 60;
+        return String.format(java.util.Locale.US, "%02d:%02d", m, s);
+    }
+
+    private void ensureFadeShaders(int viewH) {
+        if (mCachedFadeCanvasH == viewH
+                && mTopFadeShader != null
+                && mBottomFadeShader != null) {
+            return;
+        }
+        mTopFadeShader =
+                new LinearGradient(
+                        0, 0, 0, mEdgeFadeHeight,
+                        0xFF000000, 0x00000000,
+                        Shader.TileMode.CLAMP);
+        mBottomFadeShader =
+                new LinearGradient(
+                        0, viewH - mEdgeFadeHeight, 0, viewH,
+                        0x00000000, 0xFF000000,
+                        Shader.TileMode.CLAMP);
+        mCachedFadeCanvasH = viewH;
+    }
+
+    /** ARGB 两色按 t∈[0,1] 线性插值 */
+    private static int blendColor(int from, int to, float t) {
+        int a = (int) ((from >>> 24) + (((to >>> 24) - (from >>> 24)) * t));
+        int r = (int) (((from >> 16) & 0xFF) + ((((to >> 16) & 0xFF) - ((from >> 16) & 0xFF)) * t));
+        int g = (int) (((from >> 8) & 0xFF) + ((((to >> 8) & 0xFF) - ((from >> 8) & 0xFF)) * t));
+        int b = (int) ((from & 0xFF) + ((to & 0xFF) - (from & 0xFF)) * t);
+        return (a << 24) | (r << 16) | (g << 8) | b;
+    }
+
+    /** 把整体 alpha 乘以 factor∈[0,1] */
+    private static int applyAlpha(int color, float factor) {
+        int a = (int) (((color >>> 24)) * factor);
+        return (a << 24) | (color & 0x00FFFFFF);
     }
 
     private void drawText(Canvas canvas, StaticLayout staticLayout, float y) {
@@ -526,11 +719,13 @@ public class LrcView extends View {
             lrcEntry.init(mLrcPaint, (int) getLrcWidth(), mTextGravity);
         }
 
-        mOffset = getHeight() / 2F;
+        mOffset = getHeight() * ANCHOR_RATIO;
     }
 
     private void reset() {
         endAnimation();
+        endHighlightAnimation();
+        endKaraoke();
         mScroller.forceFinished(true);
         isShowTimeline = false;
         isTouching = false;
@@ -539,6 +734,70 @@ public class LrcView extends View {
         mLrcEntryList.clear();
         mOffset = 0;
         mCurrentLine = 0;
+        mPrevLine = -1;
+        mHighlightProgress = 1f;
+        mLineStartMs = 0;
+        mLineDurationMs = 0;
+        mLineProgress = 0f;
+    }
+
+    /** 行切换时启动 karaoke 扫光动画（以行时长为周期） */
+    private void startKaraoke(int line, long nowMs) {
+        endKaraoke();
+        if (!hasLrc() || line < 0 || line >= mLrcEntryList.size()) {
+            mLineProgress = 0f;
+            return;
+        }
+        mLineStartMs = mLrcEntryList.get(line).getTime();
+        long nextTime =
+                (line + 1 < mLrcEntryList.size())
+                        ? mLrcEntryList.get(line + 1).getTime()
+                        : mLineStartMs + DEFAULT_LINE_DURATION_MS;
+        mLineDurationMs = Math.max(MIN_LINE_DURATION_MS, nextTime - mLineStartMs);
+        float p0 = clamp01((float) (nowMs - mLineStartMs) / mLineDurationMs);
+        mLineProgress = p0;
+        long remainMs = (long) (mLineDurationMs * (1f - p0));
+        if (remainMs <= 0) {
+            return;
+        }
+        mKaraokeAnimator = ValueAnimator.ofFloat(p0, 1f);
+        mKaraokeAnimator.setDuration(remainMs);
+        mKaraokeAnimator.setInterpolator(new LinearInterpolator());
+        mKaraokeAnimator.addUpdateListener(
+                a -> {
+                    mLineProgress = (float) a.getAnimatedValue();
+                    invalidate();
+                });
+        mKaraokeAnimator.start();
+    }
+
+    /** 外部 500ms tick 时同行人纠正漂移 */
+    private void syncKaraoke(long nowMs) {
+        if (mKaraokeAnimator == null || !mKaraokeAnimator.isRunning()) {
+            // 首行、seek、或自然结束 —— 重新开一个
+            startKaraoke(mCurrentLine, nowMs);
+            return;
+        }
+        if (mLineDurationMs <= 0) {
+            return;
+        }
+        float p = clamp01((float) (nowMs - mLineStartMs) / mLineDurationMs);
+        if (Math.abs(p - mLineProgress) > 0.05f) {
+            mKaraokeAnimator.setCurrentFraction(p);
+        }
+    }
+
+    private void endKaraoke() {
+        if (mKaraokeAnimator != null) {
+            if (mKaraokeAnimator.isRunning()) {
+                mKaraokeAnimator.cancel();
+            }
+            mKaraokeAnimator = null;
+        }
+    }
+
+    private static float clamp01(float v) {
+        return v < 0f ? 0f : (v > 1f ? 1f : v);
     }
 
     private void smoothScrollTo(int line) {
@@ -548,20 +807,44 @@ public class LrcView extends View {
     private void smoothScrollTo(int line, long duration) {
         float offset = getOffset(line);
 
+        endAnimation();
         mAnimator = ValueAnimator.ofFloat(mOffset, offset);
         mAnimator.setDuration(duration);
-        mAnimator.setInterpolator(new AccelerateDecelerateInterpolator());
+        mAnimator.setInterpolator(EASE_OUT_IN);
         mAnimator.addUpdateListener(
                 animation -> {
                     mOffset = (float) animation.getAnimatedValue();
                     invalidate();
                 });
         mAnimator.start();
+
+        // 同步跑一次高亮过渡动画：blend 0→1
+        endHighlightAnimation();
+        if (duration > 0 && mPrevLine != line) {
+            mHighlightProgress = 0f;
+            mHighlightAnimator = ValueAnimator.ofFloat(0f, 1f);
+            mHighlightAnimator.setDuration(duration);
+            mHighlightAnimator.setInterpolator(EASE_OUT_IN);
+            mHighlightAnimator.addUpdateListener(
+                    animation -> {
+                        mHighlightProgress = (float) animation.getAnimatedValue();
+                        invalidate();
+                    });
+            mHighlightAnimator.start();
+        } else {
+            mHighlightProgress = 1f;
+        }
     }
 
     private void endAnimation() {
         if (mAnimator != null && mAnimator.isRunning()) {
             mAnimator.end();
+        }
+    }
+
+    private void endHighlightAnimation() {
+        if (mHighlightAnimator != null && mHighlightAnimator.isRunning()) {
+            mHighlightAnimator.end();
         }
     }
 
@@ -588,7 +871,7 @@ public class LrcView extends View {
 
     private float getOffset(int line) {
         if (mLrcEntryList.get(line).getOffset() == Float.MIN_VALUE) {
-            float offset = getHeight() / 2F;
+            float offset = getHeight() * ANCHOR_RATIO;
             for (int i = 1; i <= line; i++) {
                 offset -=
                         ((mLrcEntryList.get(i - 1).getHeight() + mLrcEntryList.get(i).getHeight()) >> 1)

@@ -33,6 +33,7 @@ import code.name.monkey.retromusic.helper.SortOrder
 import code.name.monkey.retromusic.model.Song
 import code.name.monkey.retromusic.providers.BlacklistStore
 import code.name.monkey.retromusic.util.PreferenceUtil
+import code.name.monkey.retromusic.util.ProfileSongStore
 import code.name.monkey.retromusic.util.getExternalStoragePublicDirectory
 import java.text.Collator
 
@@ -42,6 +43,8 @@ import java.text.Collator
 interface SongRepository {
 
     fun songs(): List<Song>
+
+    fun songsUnfiltered(): List<Song>
 
     fun songs(cursor: Cursor?): List<Song>
 
@@ -60,6 +63,12 @@ class RealSongRepository(private val context: Context) : SongRepository {
 
     override fun songs(): List<Song> {
         return sortedSongs(makeSongCursor(null, null))
+    }
+
+    // Full library, ignoring per-profile isolation. Only used to classify
+    // ownership of freshly imported songs (see ProfileSongStore.classifyNewSongs).
+    override fun songsUnfiltered(): List<Song> {
+        return sortedSongs(makeSongCursor(null, null, applyProfileFilter = false))
     }
 
     override fun songs(cursor: Cursor?): List<Song> {
@@ -114,7 +123,8 @@ class RealSongRepository(private val context: Context) : SongRepository {
     }
 
     override fun song(songId: Long): Song {
-        return song(makeSongCursor(AudioColumns._ID + "=?", arrayOf(songId.toString())))
+        return song(makeSongCursor(AudioColumns._ID + "=?", arrayOf(songId.toString()),
+            applyProfileFilter = false))
     }
 
     override fun songsByFilePath(filePath: String, ignoreBlacklist: Boolean): List<Song> {
@@ -122,7 +132,8 @@ class RealSongRepository(private val context: Context) : SongRepository {
             makeSongCursor(
                 Constants.DATA + "=?",
                 arrayOf(filePath),
-                ignoreBlacklist = ignoreBlacklist
+                ignoreBlacklist = ignoreBlacklist,
+                applyProfileFilter = false
             )
         )
     }
@@ -168,7 +179,8 @@ class RealSongRepository(private val context: Context) : SongRepository {
         selection: String?,
         selectionValues: Array<String>?,
         sortOrder: String = PreferenceUtil.songSortOrder,
-        ignoreBlacklist: Boolean = false
+        ignoreBlacklist: Boolean = false,
+        applyProfileFilter: Boolean = true
     ): Cursor? {
         var selectionFinal = selection
         var selectionValuesFinal = selectionValues
@@ -199,6 +211,20 @@ class RealSongRepository(private val context: Context) : SongRepository {
 
             selectionFinal =
                 selectionFinal + " AND " + Media.DURATION + ">= " + (PreferenceUtil.filterLength * 1000)
+
+            // Per-profile library isolation: restrict to songs owned by the current
+            // listener. Ownership lives in Room while this query hits MediaStore, so
+            // we inline the owned ids (fetched from Room) instead of joining.
+            if (applyProfileFilter && ProfileSongStore.isReady()) {
+                val owned = ProfileSongStore.ownedIdsOrNull(PreferenceUtil.currentProfileId)
+                if (owned != null) {
+                    selectionFinal = if (owned.isEmpty()) {
+                        "$selectionFinal AND " + AudioColumns._ID + " IN (-1)"
+                    } else {
+                        "$selectionFinal AND " + AudioColumns._ID + " IN (" + owned.joinToString(",") + ")"
+                    }
+                }
+            }
         }
         val uri = if (VersionUtils.hasQ()) {
             Media.getContentUri(MediaStore.VOLUME_EXTERNAL)

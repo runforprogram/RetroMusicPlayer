@@ -27,5 +27,7 @@ class PlaylistEntity(
     @ColumnInfo(name = "playlist_id")
     val playListId: Long = 0,
     @ColumnInfo(name = "playlist_name")
-    val playlistName: String
+    val playlistName: String,
+    @ColumnInfo(name = "playlist_creator", defaultValue = "0")
+    val playlistCreator: Long = 0
 ) : Parcelable
