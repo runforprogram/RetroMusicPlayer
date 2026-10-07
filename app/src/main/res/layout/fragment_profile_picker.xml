@@ -12,14 +12,16 @@
         android:layout_height="wrap_content"
         android:layout_marginBottom="2dp"
         android:text="@string/profiles_title"
-        android:textSize="18sp"
+        android:textColor="?android:attr/textColorPrimary"
+        android:textSize="20sp"
         android:textStyle="bold" />
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="8dp"
+        android:layout_marginBottom="12dp"
         android:text="@string/profiles_summary"
+        android:textColor="?attr/colorControlNormal"
         android:textSize="13sp" />
 
     <androidx.recyclerview.widget.RecyclerView
@@ -32,9 +34,10 @@
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/addButton"
-        style="@style/Widget.MaterialComponents.Button.TextButton"
+        style="@style/Widget.Material3.Button.TonalButton.Icon"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
         android:text="@string/add_profile"
         app:icon="@drawable/ic_person_flat" />
 

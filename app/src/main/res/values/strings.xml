@@ -537,6 +537,7 @@
     <string name="rename_profile">重命名</string>
     <string name="delete_profile">删除用户</string>
     <string name="profile_name_hint">用户名称</string>
+    <string name="profile_tap_to_set_avatar">点击头像可选择图片</string>
     <string name="profile_new_title">新建用户</string>
     <string name="current_profile">当前</string>
     <string name="delete_profile_confirm">确定删除用户“%1$s”吗？该用户的所有播放列表与收藏也会一并删除，且无法恢复。</string>

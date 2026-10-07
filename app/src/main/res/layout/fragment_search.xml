@@ -19,7 +19,8 @@
             style="@style/Toolbar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:navigationIcon="@drawable/ic_arrow_back"
+            app:contentInsetStart="0dp"
+            app:contentInsetStartWithNavigation="0dp"
             app:titleTextAppearance="@style/ToolbarTextAppearanceNormal">
 
             <LinearLayout
@@ -29,48 +30,68 @@
                 android:layout_marginEnd="8dp"
                 android:layout_marginTop="8dp"
                 android:layout_marginBottom="8dp"
-                android:background="@drawable/bg_search_pill"
                 android:gravity="center_vertical"
-                android:minHeight="48dp"
                 android:orientation="horizontal">
 
                 <androidx.appcompat.widget.AppCompatImageView
+                    android:id="@+id/backArrow"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="16dp"
-                    android:src="@drawable/ic_search"
+                    android:background="?roundSelector"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:padding="10dp"
+                    android:src="@drawable/ic_arrow_back"
                     app:tint="?attr/colorControlNormal" />
 
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/searchView"
+                <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
                     android:layout_weight="1"
-                    android:layout_marginStart="10dp"
-                    android:background="@null"
+                    android:background="@drawable/bg_search_pill"
                     android:gravity="center_vertical"
-                    android:hint="@string/action_search"
-                    android:imeOptions="actionSearch"
-                    android:inputType="text|textAutoComplete"
-                    android:maxLines="1"
-                    android:paddingTop="11dp"
-                    android:paddingBottom="11dp"
-                    android:textAppearance="@style/TextViewSubtitle1">
+                    android:minHeight="48dp"
+                    android:orientation="horizontal">
 
-                    <requestFocus />
-                </com.google.android.material.textfield.TextInputEditText>
+                    <androidx.appcompat.widget.AppCompatImageView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="16dp"
+                        android:src="@drawable/ic_search"
+                        app:tint="?attr/colorControlNormal" />
 
-                <androidx.appcompat.widget.AppCompatImageView
-                    android:id="@+id/clearText"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginEnd="6dp"
-                    android:background="?roundSelector"
-                    android:padding="10dp"
-                    android:visibility="gone"
-                    app:srcCompat="@drawable/ic_close"
-                    app:tint="?attr/colorControlNormal"
-                    tools:visibility="visible" />
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/searchView"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="10dp"
+                        android:background="@null"
+                        android:gravity="center_vertical"
+                        android:hint="@string/action_search"
+                        android:imeOptions="actionSearch"
+                        android:inputType="text|textAutoComplete"
+                        android:maxLines="1"
+                        android:paddingTop="11dp"
+                        android:paddingBottom="11dp"
+                        android:textAppearance="@style/TextViewSubtitle1">
+
+                        <requestFocus />
+                    </com.google.android.material.textfield.TextInputEditText>
+
+                    <androidx.appcompat.widget.AppCompatImageView
+                        android:id="@+id/clearText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="6dp"
+                        android:background="?roundSelector"
+                        android:padding="10dp"
+                        android:visibility="gone"
+                        app:srcCompat="@drawable/ic_close"
+                        app:tint="?attr/colorControlNormal"
+                        tools:visibility="visible" />
+                </LinearLayout>
             </LinearLayout>
         </com.google.android.material.appbar.MaterialToolbar>
         <HorizontalScrollView

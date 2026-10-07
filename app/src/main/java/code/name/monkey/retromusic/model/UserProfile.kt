@@ -23,5 +23,8 @@ import kotlinx.parcelize.Parcelize
 @Parcelize
 data class UserProfile(
     val id: Long,
-    val name: String
+    val name: String,
+    // Absolute path of a locally stored avatar image, or null to fall back to a
+    // colored initial-letter placeholder derived from [name].
+    val avatarPath: String? = null
 ) : Parcelable

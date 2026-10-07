@@ -73,7 +73,7 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
         libraryViewModel.clearSearchResult()
         setupRecyclerView()
 
-        binding.toolbar.setNavigationOnClickListener { findNavController().navigateUp() }
+        binding.backArrow.setOnClickListener { findNavController().navigateUp() }
         binding.clearText.setOnClickListener {
             binding.searchView.clearText()
             searchAdapter.swapDataSet(listOf())

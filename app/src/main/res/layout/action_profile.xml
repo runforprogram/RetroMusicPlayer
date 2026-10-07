@@ -21,5 +21,4 @@
     app:icon="@drawable/ic_account"
     app:iconGravity="textStart"
     app:iconPadding="2dp"
-    app:iconSize="32dp"
-    app:iconTint="?attr/colorPrimary" />
+    app:iconSize="32dp" />

@@ -1,13 +1,22 @@
 package code.name.monkey.retromusic.util
 
 import android.app.Activity
+import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
 import android.view.View
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.bumptech.glide.load.resource.bitmap.CircleCrop
+import com.bumptech.glide.request.RequestOptions
+import com.bumptech.glide.request.target.CustomTarget
+import com.bumptech.glide.request.transition.Transition
 import code.name.monkey.retromusic.R
 import code.name.monkey.retromusic.extensions.showToast
 import code.name.monkey.retromusic.fragments.LibraryViewModel
 import code.name.monkey.retromusic.fragments.ReloadType
 import code.name.monkey.retromusic.model.UserProfile
 import com.google.android.material.button.MaterialButton
+import java.io.File
 
 /**
  * Single entry point for listener-profile switching.
@@ -33,8 +42,50 @@ object ProfileSwitcher {
     ) {
         val button = root?.findViewById<MaterialButton>(R.id.profileButton) ?: return
         chip = button
-        button.text = PreferenceUtil.currentProfile().name
+        val profile = PreferenceUtil.currentProfile()
+        button.text = profile.name
+        applyProfileIcon(button, profile)
         button.setOnClickListener { cycle(activity, libraryViewModel) }
+    }
+
+    /** Re-syncs the chip label + avatar after the current profile is edited. */
+    fun refreshChip() {
+        val button = chip ?: return
+        val profile = PreferenceUtil.currentProfile()
+        button.text = profile.name
+        applyProfileIcon(button, profile)
+    }
+
+    /** Shows the profile photo when set, else a colored dot keyed to the name. */
+    private fun applyProfileIcon(button: MaterialButton, profile: UserProfile) {
+        val file = profile.avatarPath?.let(::File)
+        if (file != null && file.exists()) {
+            val px = (32 * button.resources.displayMetrics.density).toInt()
+            Glide.with(button)
+                .load(file)
+                .apply(RequestOptions.bitmapTransform(CircleCrop()))
+                .diskCacheStrategy(DiskCacheStrategy.NONE)
+                .override(px, px)
+                .into(object : CustomTarget<Drawable>() {
+                    override fun onResourceReady(resource: Drawable, transition: Transition<in Drawable>?) {
+                        button.icon = resource
+                        button.iconTint = null
+                    }
+
+                    override fun onLoadCleared(placeholder: Drawable?) {
+                        button.icon = null
+                    }
+                })
+        } else {
+            Glide.with(button).clear(button)
+            val px = (32 * button.resources.displayMetrics.density).toInt()
+            button.icon = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(ProfileAvatar.colorFor(profile.name))
+                setSize(px, px)
+            }
+            button.iconTint = null
+        }
     }
 
     fun reloadLibrary(libraryViewModel: LibraryViewModel) {
@@ -51,6 +102,7 @@ object ProfileSwitcher {
     fun switchTo(activity: Activity, libraryViewModel: LibraryViewModel, profile: UserProfile) {
         PreferenceUtil.currentProfileId = profile.id
         chip?.text = profile.name
+        chip?.let { applyProfileIcon(it, profile) }
         activity.invalidateOptionsMenu()
         reloadLibrary(libraryViewModel)
         activity.showToast(activity.getString(R.string.profile_switched, profile.name))
