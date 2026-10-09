@@ -269,8 +269,12 @@ abstract class AbsRecyclerViewFragment<A : RecyclerView.Adapter<*>, LM : Recycle
 
     private fun checkForMargins() {
         if (mainActivity.isBottomNavVisible) {
+            val margin = dip(R.dimen.bottom_nav_height)
             binding.recyclerView.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-                bottomMargin = dip(R.dimen.bottom_nav_height)
+                bottomMargin = margin
+            }
+            binding.searchResults.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                bottomMargin = margin
             }
         }
     }
