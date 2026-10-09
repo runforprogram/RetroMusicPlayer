@@ -74,7 +74,7 @@
         android:textAppearance="@style/TextViewSubtitle1"
         android:textColor="?android:attr/textColorPrimary"
         app:layout_constraintBottom_toTopOf="@+id/text"
-        app:layout_constraintEnd_toStartOf="@id/menu"
+        app:layout_constraintEnd_toStartOf="@id/play"
         app:layout_constraintHorizontal_bias="0.5"
         app:layout_constraintStart_toEndOf="@id/imageTextContainer"
         app:layout_constraintTop_toTopOf="parent"
@@ -92,11 +92,25 @@
         android:textAppearance="@style/TextViewBody2"
         android:textColor="?android:attr/textColorSecondary"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toStartOf="@id/menu"
+        app:layout_constraintEnd_toStartOf="@id/play"
         app:layout_constraintHorizontal_bias="0.5"
         app:layout_constraintStart_toEndOf="@id/imageTextContainer"
         app:layout_constraintTop_toBottomOf="@+id/title"
         tools:text="@tools:sample/full_names" />
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/play"
+        style="@style/OverFlowButton"
+        android:layout_gravity="center_vertical"
+        android:layout_weight="0"
+        android:contentDescription="@string/action_play"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/menu"
+        app:layout_constraintTop_toTopOf="parent"
+        app:srcCompat="@drawable/ic_play_circle"
+        app:tint="?attr/colorControlNormal"
+        tools:visibility="visible" />
 
     <androidx.appcompat.widget.AppCompatImageView
         android:id="@+id/menu"

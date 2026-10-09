@@ -68,6 +68,7 @@
                         style="@style/Toolbar"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:visibility="gone"
                         app:navigationIcon="@drawable/ic_keyboard_arrow_down" />
                 </FrameLayout>
 
@@ -79,6 +80,73 @@
                     android:layout_gravity="bottom"
                     android:layout_weight="1"
                     tools:layout="@layout/fragment_player_playback_controls" />
+
+                <!-- 带文字的操作按钮行：与竖屏一致 -->
+                <HorizontalScrollView
+                    android:id="@+id/buttonRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="0"
+                    android:fillViewport="true"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:minWidth="360dp"
+                        android:orientation="horizontal"
+                        android:paddingHorizontal="4dp">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnDelete"
+                            style="@style/PlayerActionButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/player_delete"
+                            app:icon="@drawable/ic_delete" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnSleepTimer"
+                            style="@style/PlayerActionButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/player_sleep_timer"
+                            app:icon="@drawable/ic_sleep_timer" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnFavorite"
+                            style="@style/PlayerActionButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/player_favorite"
+                            app:icon="@drawable/ic_favorite_border" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnQueue"
+                            style="@style/PlayerActionButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/player_queue"
+                            app:icon="@drawable/ic_queue_music" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnSpeed"
+                            style="@style/PlayerActionButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/player_speed"
+                            app:icon="@drawable/ic_playback_speed" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnLyrics"
+                            style="@style/PlayerActionButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/player_lyrics"
+                            app:icon="@drawable/ic_lyrics_outline" />
+                    </LinearLayout>
+                </HorizontalScrollView>
 
             </LinearLayout>
         </LinearLayout>

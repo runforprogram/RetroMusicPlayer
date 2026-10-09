@@ -17,13 +17,18 @@ package code.name.monkey.retromusic.fragments.home
 import android.os.Bundle
 import android.view.*
 import android.view.MenuItem.SHOW_AS_ACTION_IF_ROOM
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
+import androidx.activity.OnBackPressedCallback
 import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.core.content.getSystemService
 import androidx.core.os.bundleOf
 import androidx.core.text.parseAsHtml
 import androidx.core.view.doOnLayout
 import androidx.core.view.doOnPreDraw
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
+import androidx.core.widget.doAfterTextChanged
 import androidx.navigation.fragment.FragmentNavigatorExtras
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -32,6 +37,7 @@ import code.name.monkey.appthemehelper.util.ColorUtil
 import code.name.monkey.appthemehelper.util.ToolbarContentTintHelper
 import code.name.monkey.retromusic.*
 import code.name.monkey.retromusic.adapter.HomeAdapter
+import code.name.monkey.retromusic.adapter.SearchAdapter
 import code.name.monkey.retromusic.databinding.FragmentHomeBinding
 import code.name.monkey.retromusic.dialogs.CreatePlaylistDialog
 import code.name.monkey.retromusic.dialogs.ImportPlaylistDialog
@@ -39,9 +45,11 @@ import code.name.monkey.retromusic.dialogs.ProfilePickerDialog
 import code.name.monkey.retromusic.extensions.accentColor
 import code.name.monkey.retromusic.extensions.dip
 import code.name.monkey.retromusic.extensions.elevatedAccentColor
+import code.name.monkey.retromusic.extensions.focusAndShowKeyboard
 import code.name.monkey.retromusic.extensions.setUpMediaRouteButton
 import code.name.monkey.retromusic.fragments.ReloadType
 import code.name.monkey.retromusic.fragments.base.AbsMainActivityFragment
+import code.name.monkey.retromusic.fragments.search.Filter
 import code.name.monkey.retromusic.glide.RetroGlideExtension
 import code.name.monkey.retromusic.glide.RetroGlideExtension.profileBannerOptions
 import code.name.monkey.retromusic.glide.RetroGlideExtension.songCoverOptions
@@ -55,6 +63,7 @@ import code.name.monkey.retromusic.util.PreferenceUtil.userName
 import com.bumptech.glide.Glide
 import com.google.android.material.transition.MaterialFadeThrough
 import com.google.android.material.transition.MaterialSharedAxis
+import kotlinx.coroutines.Job
 
 class HomeFragment :
     AbsMainActivityFragment(R.layout.fragment_home), IScrollHelper {
@@ -69,6 +78,7 @@ class HomeFragment :
         mainActivity.setSupportActionBar(binding.toolbar)
         mainActivity.supportActionBar?.title = null
         setupListeners()
+        setupHomeSearch()
         val name = userName?.trim().orEmpty()
         val hasCustomName = name.isNotEmpty() && name != getString(R.string.user_name)
         binding.titleWelcome.isVisible = hasCustomName
@@ -163,6 +173,97 @@ class HomeFragment :
                 ReloadType.Suggestions
             )
         }
+    }
+
+    /*** 首页内嵌搜索：点胶囊原地展开，实时出结果，点歌直接播 ***/
+
+    private var searchExpanded = false
+    private var homeSearchAdapter: SearchAdapter? = null
+    private var homeSearchJob: Job? = null
+
+    private fun setupHomeSearch() {
+        homeSearchAdapter = SearchAdapter(requireActivity(), emptyList())
+        binding.searchResults.layoutManager = LinearLayoutManager(requireActivity())
+        binding.searchResults.adapter = homeSearchAdapter
+
+        binding.searchBar.setOnClickListener {
+            if (!searchExpanded) expandHomeSearch()
+        }
+        binding.searchClear.setOnClickListener {
+            if (!binding.searchInput.text.isNullOrEmpty()) {
+                binding.searchInput.setText("")
+            } else {
+                collapseHomeSearch()
+            }
+        }
+        binding.searchInput.doAfterTextChanged { text ->
+            val q = text?.toString()?.trim().orEmpty()
+            homeSearchJob?.cancel()
+            if (q.isEmpty()) {
+                libraryViewModel.clearSearchResult()
+                homeSearchAdapter?.swapDataSet(emptyList())
+                return@doAfterTextChanged
+            }
+            homeSearchJob = libraryViewModel.search(q, Filter.NO_FILTER)
+        }
+        binding.searchInput.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                val q = binding.searchInput.text?.toString()?.trim().orEmpty()
+                if (q.isNotEmpty()) PreferenceUtil.pushSearchHistory(q)
+                hideKeyboardFor(binding.searchInput)
+                true
+            } else false
+        }
+        libraryViewModel.getSearchResult().observe(viewLifecycleOwner) { data ->
+            if (searchExpanded) {
+                homeSearchAdapter?.query = binding.searchInput.text?.toString()
+                homeSearchAdapter?.swapDataSet(data)
+            }
+        }
+        requireActivity().onBackPressedDispatcher.addCallback(
+            viewLifecycleOwner,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    if (searchExpanded) {
+                        collapseHomeSearch()
+                    } else {
+                        isEnabled = false
+                        requireActivity().onBackPressedDispatcher.onBackPressed()
+                    }
+                }
+            }
+        )
+    }
+
+    private fun expandHomeSearch() {
+        searchExpanded = true
+        binding.searchHint.isVisible = false
+        binding.searchInput.isVisible = true
+        binding.searchClear.isVisible = true
+        binding.searchResults.isVisible = true
+        binding.contentGroup.isVisible = false
+        binding.searchInput.requestFocus()
+        binding.searchInput.focusAndShowKeyboard()
+    }
+
+    private fun collapseHomeSearch() {
+        searchExpanded = false
+        homeSearchJob?.cancel()
+        binding.searchInput.setText("")
+        binding.searchInput.isVisible = false
+        binding.searchHint.isVisible = true
+        binding.searchClear.isVisible = false
+        binding.searchResults.isVisible = false
+        homeSearchAdapter?.swapDataSet(emptyList())
+        libraryViewModel.clearSearchResult()
+        binding.contentGroup.isVisible = true
+        hideKeyboardFor(binding.searchBar)
+    }
+
+    private fun hideKeyboardFor(view: View?) {
+        if (view == null) return
+        requireContext().getSystemService<InputMethodManager>()
+            ?.hideSoftInputFromWindow(view.windowToken, 0)
     }
 
     private fun setupTitle() {

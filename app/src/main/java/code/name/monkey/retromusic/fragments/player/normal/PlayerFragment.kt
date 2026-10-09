@@ -22,6 +22,7 @@ import android.os.Bundle
 import android.view.View
 import androidx.appcompat.widget.Toolbar
 import androidx.core.view.isVisible
+import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
 import code.name.monkey.appthemehelper.util.ToolbarContentTintHelper
 import code.name.monkey.retromusic.R
@@ -36,6 +37,9 @@ import code.name.monkey.retromusic.util.PreferenceUtil
 import code.name.monkey.retromusic.util.ViewUtil
 import code.name.monkey.retromusic.util.color.MediaNotificationProcessor
 import code.name.monkey.retromusic.views.DrawableGradient
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class PlayerFragment : AbsPlayerFragment(R.layout.fragment_player),
     SharedPreferences.OnSharedPreferenceChangeListener {
@@ -106,6 +110,7 @@ class PlayerFragment : AbsPlayerFragment(R.layout.fragment_player),
         super.toggleFavorite(song)
         if (song.id == MusicPlayerRemote.currentSong.id) {
             updateIsFavorite()
+            updateFavoriteButton()
         }
     }
 
@@ -150,6 +155,65 @@ class PlayerFragment : AbsPlayerFragment(R.layout.fragment_player),
             colorControlNormal(),
             requireActivity()
         )
+        setUpActionButtons()
+    }
+
+    /*** 图标+文字的操作按钮行：直接复用菜单的同一套处理逻辑 ***/
+
+    private fun setUpActionButtons() {
+        binding.btnSleepTimer?.setOnClickListener {
+            dispatchMenuItem(R.id.action_sleep_timer)
+        }
+        binding.btnLyrics?.setOnClickListener {
+            dispatchMenuItem(R.id.action_toggle_lyrics)
+            syncLyricsButton()
+        }
+        binding.btnFavorite?.setOnClickListener {
+            dispatchMenuItem(R.id.action_toggle_favorite)
+        }
+        binding.btnQueue?.setOnClickListener {
+            dispatchMenuItem(R.id.now_playing)
+        }
+        binding.btnSpeed?.setOnClickListener {
+            dispatchMenuItem(R.id.action_playback_speed)
+        }
+        binding.btnDelete?.setOnClickListener {
+            dispatchMenuItem(R.id.action_delete_from_device)
+        }
+        syncLyricsButton()
+        updateFavoriteButton()
+    }
+
+    // 把按钮点击转发给已 inflate 的真实菜单项，行为与溢出菜单完全一致
+    private fun dispatchMenuItem(itemId: Int) {
+        binding.playerToolbar.menu.findItem(itemId)?.let { onMenuItemClick(it) }
+    }
+
+    private fun syncLyricsButton() {
+        val show = PreferenceUtil.showLyrics
+        binding.btnLyrics?.setIconResource(if (show) R.drawable.ic_lyrics else R.drawable.ic_lyrics_outline)
+        binding.btnLyrics?.text = getString(if (show) R.string.player_lyrics_on else R.string.player_lyrics)
+    }
+
+    private fun updateFavoriteButton() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val isFavorite = libraryViewModel.isSongFavorite(MusicPlayerRemote.currentSong.id)
+            withContext(Dispatchers.Main) {
+                if (_binding == null) return@withContext
+                binding.btnFavorite?.setIconResource(
+                    if (isFavorite) R.drawable.ic_favorite else R.drawable.ic_favorite_border
+                )
+                binding.btnFavorite?.text = getString(
+                    if (isFavorite) R.string.player_favorited else R.string.player_favorite
+                )
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        syncLyricsButton()
+        updateFavoriteButton()
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences, key: String?) {
@@ -171,10 +235,12 @@ class PlayerFragment : AbsPlayerFragment(R.layout.fragment_player),
 
     override fun onServiceConnected() {
         updateIsFavorite()
+        updateFavoriteButton()
     }
 
     override fun onPlayingMetaChanged() {
         updateIsFavorite()
+        updateFavoriteButton()
     }
 
     override fun playerToolbar(): Toolbar {

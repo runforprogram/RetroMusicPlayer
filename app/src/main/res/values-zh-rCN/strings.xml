@@ -508,4 +508,13 @@
     <string name="pref_save_last_directory_title">保存上次目录</string>
     <string name="profile_manage">用户管理</string>
     <string name="profile_only_one_hint">当前只有一个用户，可在「用户管理」中添加</string>
+
+    <string name="player_sleep_timer">定时</string>
+    <string name="player_lyrics">歌词</string>
+    <string name="player_lyrics_on">已开歌词</string>
+    <string name="player_favorite">收藏</string>
+    <string name="player_favorited">已收藏</string>
+    <string name="player_queue">队列</string>
+    <string name="player_speed">倍速</string>
+    <string name="player_delete">删除</string>
 </resources>

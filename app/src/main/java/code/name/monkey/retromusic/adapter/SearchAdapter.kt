@@ -32,6 +32,7 @@ import code.name.monkey.appthemehelper.ThemeStore
 import code.name.monkey.retromusic.*
 import code.name.monkey.retromusic.adapter.base.MediaEntryViewHolder
 import code.name.monkey.retromusic.db.PlaylistWithSongs
+import code.name.monkey.retromusic.db.toSongs
 import code.name.monkey.retromusic.glide.RetroGlideExtension
 import code.name.monkey.retromusic.glide.RetroGlideExtension.albumCoverOptions
 import code.name.monkey.retromusic.glide.RetroGlideExtension.artistImageOptions
@@ -42,14 +43,21 @@ import code.name.monkey.retromusic.model.Album
 import code.name.monkey.retromusic.model.Artist
 import code.name.monkey.retromusic.model.Genre
 import code.name.monkey.retromusic.model.Song
+import code.name.monkey.retromusic.repository.GenreRepository
 import code.name.monkey.retromusic.util.MusicUtil
 import com.bumptech.glide.Glide
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.get
 import java.util.*
 
 class SearchAdapter(
     private val activity: FragmentActivity,
     private var dataSet: List<Any>
-) : RecyclerView.Adapter<SearchAdapter.ViewHolder>() {
+) : RecyclerView.Adapter<SearchAdapter.ViewHolder>(), KoinComponent {
 
     /** 当前搜索关键词，用于命中高亮 */
     var query: String? = null
@@ -124,6 +132,10 @@ class SearchAdapter(
                 Glide.with(activity).asDrawable().albumCoverOptions(album.safeGetFirstSong())
                     .load(RetroGlideExtension.getSongModel(album.safeGetFirstSong()))
                     .into(holder.image!!)
+                holder.play?.isVisible = true
+                holder.play?.setOnClickListener {
+                    MusicPlayerRemote.openQueue(album.songs, 0, true)
+                }
             }
 
             ARTIST -> {
@@ -134,6 +146,10 @@ class SearchAdapter(
                 Glide.with(activity).asDrawable().artistImageOptions(artist).load(
                     RetroGlideExtension.getArtistModel(artist)
                 ).into(holder.image!!)
+                holder.play?.isVisible = true
+                holder.play?.setOnClickListener {
+                    MusicPlayerRemote.openQueue(artist.songs, 0, true)
+                }
             }
 
             SONG -> {
@@ -156,12 +172,25 @@ class SearchAdapter(
                         R.string.song
                     )
                 )
+                holder.play?.isVisible = true
+                holder.play?.setOnClickListener {
+                    CoroutineScope(Dispatchers.Main).launch {
+                        val songs = withContext(Dispatchers.IO) {
+                            get<GenreRepository>().songs(genre.id)
+                        }
+                        MusicPlayerRemote.openQueue(songs, 0, true)
+                    }
+                }
             }
 
             PLAYLIST -> {
                 val playlist = dataSet[position] as PlaylistWithSongs
                 holder.title?.text = highlight(playlist.playlistEntity.playlistName)
                 //holder.text?.text = MusicUtil.playlistInfoString(activity, playlist.songs)
+                holder.play?.isVisible = true
+                holder.play?.setOnClickListener {
+                    MusicPlayerRemote.openQueue(playlist.songs.toSongs(), 0, true)
+                }
             }
 
             ALBUM_ARTIST -> {
@@ -172,6 +201,10 @@ class SearchAdapter(
                 Glide.with(activity).asDrawable().artistImageOptions(artist).load(
                     RetroGlideExtension.getArtistModel(artist)
                 ).into(holder.image!!)
+                holder.play?.isVisible = true
+                holder.play?.setOnClickListener {
+                    MusicPlayerRemote.openQueue(artist.songs, 0, true)
+                }
             }
 
             else -> {
@@ -186,6 +219,8 @@ class SearchAdapter(
     }
 
     inner class ViewHolder(itemView: View, itemViewType: Int) : MediaEntryViewHolder(itemView) {
+        val play: View? = itemView.findViewById(R.id.play)
+
         init {
             itemView.setOnLongClickListener(null)
             imageTextContainer?.isInvisible = true
@@ -249,8 +284,12 @@ class SearchAdapter(
                 }
 
                 SONG -> {
-                    MusicPlayerRemote.playNext(item as Song)
-                    MusicPlayerRemote.playNextSong()
+                    // 单击直接播：以本批搜索结果的全部歌曲为队列，从点的那首开始
+                    val song = item as Song
+                    val resultSongs = dataSet.filterIsInstance<Song>()
+                    val index = resultSongs.indexOfFirst { it.id == song.id }
+                        .coerceAtLeast(0)
+                    MusicPlayerRemote.openQueue(resultSongs, index, true)
                 }
             }
         }

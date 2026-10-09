@@ -19,4 +19,10 @@ class HomeBinding(
     val recyclerView = homeBinding.homeContent.recyclerView
     val titleWelcome = homeBinding.imageLayout.titleWelcome
     val suggestions = homeBinding.homeContent.suggestions
+    val searchBar = homeBinding.homeContent.searchBar
+    val searchHint = homeBinding.homeContent.searchHint
+    val searchInput = homeBinding.homeContent.searchInput
+    val searchClear = homeBinding.homeContent.searchClear
+    val searchResults = homeBinding.homeContent.searchResults
+    val contentGroup = homeBinding.homeContent.contentGroup
 }

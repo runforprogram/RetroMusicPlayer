@@ -538,6 +538,7 @@
     <string name="delete_profile">删除用户</string>
     <string name="profile_name_hint">用户名称</string>
     <string name="profile_tap_to_set_avatar">点击头像可选择图片</string>
+    <string name="home_search_hint">搜索歌曲、歌手、专辑…</string>
     <string name="profile_new_title">新建用户</string>
     <string name="current_profile">当前</string>
     <string name="delete_profile_confirm">确定删除用户“%1$s”吗？该用户的所有播放列表与收藏也会一并删除，且无法恢复。</string>
@@ -545,4 +546,13 @@
 
     <string name="profile_manage">Manage profiles</string>
     <string name="profile_only_one_hint">Only one user right now; add more in Manage profiles</string>
+
+    <string name="player_sleep_timer">定时</string>
+    <string name="player_lyrics">歌词</string>
+    <string name="player_lyrics_on">已开歌词</string>
+    <string name="player_favorite">收藏</string>
+    <string name="player_favorited">已收藏</string>
+    <string name="player_queue">队列</string>
+    <string name="player_speed">倍速</string>
+    <string name="player_delete">删除</string>
 </resources>

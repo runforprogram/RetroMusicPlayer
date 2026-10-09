@@ -55,23 +55,94 @@
         android:name="code.name.monkey.retromusic.fragments.player.normal.PlayerPlaybackControlsFragment"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        app:layout_constraintBottom_toTopOf="@id/playerToolbar"
+        app:layout_constraintBottom_toTopOf="@id/buttonRow"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/playerAlbumCoverFragment"
         tools:layout="@layout/fragment_player_playback_controls" />
 
+    <!-- 带文字的操作按钮行：图标+文字一目了然，可横向滑动 -->
+    <HorizontalScrollView
+        android:id="@+id/buttonRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fillViewport="true"
+        android:scrollbars="none"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/playbackControlsFragment">
 
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:minWidth="360dp"
+            android:orientation="horizontal"
+            android:paddingHorizontal="4dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnDelete"
+                style="@style/PlayerActionButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/player_delete"
+                app:icon="@drawable/ic_delete" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSleepTimer"
+                style="@style/PlayerActionButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/player_sleep_timer"
+                app:icon="@drawable/ic_sleep_timer" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnFavorite"
+                style="@style/PlayerActionButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/player_favorite"
+                app:icon="@drawable/ic_favorite_border" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnQueue"
+                style="@style/PlayerActionButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/player_queue"
+                app:icon="@drawable/ic_queue_music" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSpeed"
+                style="@style/PlayerActionButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/player_speed"
+                app:icon="@drawable/ic_playback_speed" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnLyrics"
+                style="@style/PlayerActionButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/player_lyrics"
+                app:icon="@drawable/ic_lyrics_outline" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <!-- 菜单保留但不再显示：按钮行复用同一套处理逻辑 -->
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/playerToolbar"
         style="@style/Toolbar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
+        android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/playbackControlsFragment"
+        app:layout_constraintTop_toBottomOf="@id/buttonRow"
         app:title="@null"
         tools:menu="@menu/menu_player" />
 

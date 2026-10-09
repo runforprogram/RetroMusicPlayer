@@ -74,6 +74,16 @@ class SearchFragment : AbsMainActivityFragment(R.layout.fragment_search),
         setupRecyclerView()
 
         binding.backArrow.setOnClickListener { findNavController().navigateUp() }
+        // 点放大镜：立即出结果并收起键盘，一步到位
+        binding.searchAction.setOnClickListener {
+            val q = binding.searchView.text?.toString()?.trim().orEmpty()
+            if (q.isNotEmpty()) {
+                search(q)
+                PreferenceUtil.pushSearchHistory(q)
+                renderSearchHistory()
+            }
+            hideKeyboard(binding.searchView)
+        }
         binding.clearText.setOnClickListener {
             binding.searchView.clearText()
             searchAdapter.swapDataSet(listOf())

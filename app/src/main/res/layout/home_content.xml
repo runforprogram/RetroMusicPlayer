@@ -12,37 +12,123 @@
   ~ See the GNU General Public License for more details.
   -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:descendantFocusability="blocksDescendants"
-    android:focusable="true"
+    android:descendantFocusability="beforeDescendants"
     android:focusableInTouchMode="true"
     android:orientation="vertical">
 
-    <include
-        android:id="@+id/abs_playlists"
-        layout="@layout/abs_playlists" />
-
+    <!-- 常驻搜索胶囊：收起态=🔍+提示文字；展开态=输入框+清除 -->
     <LinearLayout
+        android:id="@+id/searchBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="8dp"
+        android:background="@drawable/bg_search_pill"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:minHeight="48dp"
+        android:orientation="horizontal">
+
+        <androidx.appcompat.widget.AppCompatImageView
+            android:id="@+id/searchIcon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:padding="10dp"
+            android:src="@drawable/ic_search"
+            app:tint="?attr/colorControlNormal" />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/searchHint"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="@string/home_search_hint"
+            android:textAppearance="@style/TextViewSubtitle1"
+            android:textColor="?android:attr/textColorSecondary" />
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/searchInput"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="2dp"
+            android:layout_weight="1"
+            android:background="@null"
+            android:gravity="center_vertical"
+            android:imeOptions="actionSearch"
+            android:inputType="text|textAutoComplete"
+            android:maxLines="1"
+            android:paddingTop="11dp"
+            android:paddingBottom="11dp"
+            android:textAppearance="@style/TextViewSubtitle1"
+            android:visibility="gone" />
+
+        <androidx.appcompat.widget.AppCompatImageView
+            android:id="@+id/searchClear"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:background="?roundSelector"
+            android:padding="10dp"
+            android:visibility="gone"
+            app:srcCompat="@drawable/ic_close"
+            app:tint="?attr/colorControlNormal"
+            tools:visibility="visible" />
+    </LinearLayout>
+
+    <!-- 首页内搜索结果 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/searchResults"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:nestedScrollingEnabled="false"
+        android:overScrollMode="never"
+        android:paddingBottom="@dimen/mini_player_height"
+        android:visibility="gone"
+        tools:itemCount="6"
+        tools:listitem="@layout/item_list"
+        tools:visibility="visible" />
+
+    <LinearLayout
+        android:id="@+id/contentGroup"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         android:orientation="vertical">
 
         <include
-            android:id="@+id/suggestions"
-            layout="@layout/item_suggestions" />
+            android:id="@+id/abs_playlists"
+            layout="@layout/abs_playlists" />
 
-        <code.name.monkey.retromusic.views.insets.InsetsRecyclerView
-            android:id="@+id/recyclerView"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:nestedScrollingEnabled="false"
-            android:overScrollMode="@integer/overScrollMode"
-            android:paddingBottom="@dimen/mini_player_height"
-            tools:itemCount="10"
-            tools:layoutManager="androidx.recyclerview.widget.GridLayoutManager"
-            tools:listitem="@layout/item_album_card"
-            tools:spanCount="3" />
+            android:orientation="vertical">
+
+            <include
+                android:id="@+id/suggestions"
+                layout="@layout/item_suggestions" />
+
+            <code.name.monkey.retromusic.views.insets.InsetsRecyclerView
+                android:id="@+id/recyclerView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:nestedScrollingEnabled="false"
+                android:overScrollMode="@integer/overScrollMode"
+                android:paddingBottom="@dimen/mini_player_height"
+                tools:itemCount="10"
+                tools:layoutManager="androidx.recyclerview.widget.GridLayoutManager"
+                tools:listitem="@layout/item_album_card"
+                tools:spanCount="3" />
+        </LinearLayout>
     </LinearLayout>
 </LinearLayout>
